@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicaDiscord</title>
+
+    <script src="https://use.fontawesome.com/5f3c885cb6.js"></script>
+
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/options.js"></script>
+</head>
+
+<body>
+    <main>
+        <fieldset>
+            <legend>Border Radius</legend>
+
+            <div>
+                <input type="radio" id="rounded" name="borderRadius" value="2" checked>
+                <label for="rounded">Rounded</label>
+            </div>
+
+            <div>
+                <input type="radio" id="smallrounded" name="borderRadius" value="3">
+                <label for="smallrounded">Small Rounded</label>
+            </div>
+
+            <div>
+                <input type="radio" id="square" name="borderRadius" value="1">
+                <label for="square">Square</label>
+            </div>
+
+            <button id="border" class="center-bottom">Apply</button>
+        </fieldset>
+        <fieldset>
+            <legend>Border Color</legend>
+
+            <div>
+                <input type="color" id="borderColor">
+                <label for="borderColor">Border Color</label>
+            </div>
+            <button id="disableBorder" class="right-bottom">Disable</button>
+        </fieldset>
+        <fieldset>
+            <legend>Custom effect Color</legend>
+
+            <div>
+                <input type="color" id="backgroundColor">
+                <label for="backgroundColor">Background Color</label>
+            </div>
+            <div class="right-top">
+                <input type="range" id="alpha" min="0" max="1" step="0.01">
+                <label id="textAlpha" for="alpha">50%</label>
+            </div>
+            <fieldset>
+                <legend>Type</legend>
+    
+                <div>
+                    <input type="radio" id="transparent" name="backgroundType" value="2" checked>
+                    <label for="transparent">Transparent</label>
+                </div>
+    
+                <div>
+                    <input type="radio" id="acrylic" name="backgroundType" value="4">
+                    <label for="acrylic">Acrylic</label>
+                </div>
+                <button id="disableBackground" class="right-bottom">Disable</button>
+            </fieldset>
+        </fieldset>
+    </main>
+</body>
+
+</html>

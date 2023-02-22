@@ -1,0 +1,25 @@
+appId: "com.mica.discord"
+productName: "Mica Discord"
+asar: true
+
+directories:
+  output: "release"
+
+win:
+  icon: "build/icon.ico"
+  publish:
+    - github
+  target:
+    - "nsis"
+    - "portable"
+
+nsis:
+  oneClick: false
+  deleteAppDataOnUninstall: true
+  allowToChangeInstallationDirectory: true
+  artifactName: MicaDiscord-${version}-setup.${ext}
+
+publish:
+  provider: "github"
+  owner: "GregVido"
+  repo: "MicaDiscord"

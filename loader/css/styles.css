@@ -1,0 +1,23 @@
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-app-region: drag;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.fa {
+    position: absolute;
+    left: calc(50% - 16px);
+    top: calc(50% - 16px);
+    font-size: 32px;
+}
+
+span {
+    position: absolute;
+    bottom: 0;
+    font-size: 12px;
+    padding: 5px;
+}

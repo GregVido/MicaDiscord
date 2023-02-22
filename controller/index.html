@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicaDiscord</title>
+
+    <script src="https://use.fontawesome.com/5f3c885cb6.js"></script>
+
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/controller.js"></script>
+</head>
+
+<body>
+    <header>
+        <span class="focus"><i class="fa fa-download" aria-hidden="true"></i>
+            <div class="border"></div>
+        </span>
+        <span><i class="fa fa-cog" aria-hidden="true"></i>
+            <div class="border"></div>
+        </span>
+        <span><i class="fa fa-pencil" aria-hidden="true"></i>
+            <div class="border"></div>
+        </span>
+        <span><i class="fa fa-info" aria-hidden="true"></i>
+            <div class="border"></div>
+        </span>
+        <i class="fa fa-square connected" aria-hidden="true" title="MicaDiscord n'arrive pas à se connecter à Discord"></i>
+    </header>
+    <main>
+        <section class="visible">
+            <h1>MicaDiscord</h1>
+
+            <div class="log"></div>
+            <progress value="0" max="100"></progress>
+
+            <button class="center-bottom download">Install</button>
+            <alert>The latest version is not installed.</alert>
+        </section>
+        <section>
+            <h1>Settings</h1>
+
+            <table>
+                <tr>
+                    <td>
+                        <fieldset>
+                            <legend>Effect</legend>
+            
+                            <div>
+                                <input type="radio" id="acrylic" name="effect" value="3">
+                                <label for="acrylic">Acrylic</label>
+                            </div>
+            
+                            <div>
+                                <input type="radio" id="mica" name="effect" value="2" checked>
+                                <label for="mica">Mica</label>
+                            </div>
+            
+                            <div>
+                                <input type="radio" id="tabbed" name="effect" value="4">
+                                <label for="tabbed">Tabbed Mica</label>
+                            </div>
+                        </fieldset>
+                    </td>
+                    <td>
+                        <fieldset>
+                            <legend>Theme</legend>
+            
+                            <div>
+                                <input type="radio" id="auto" name="theme" value="0">
+                                <label for="auto">Auto</label>
+                            </div>
+            
+                            <div>
+                                <input type="radio" id="dark" name="theme" value="1" checked>
+                                <label for="dark">Dark</label>
+                            </div>
+            
+                            <div>
+                                <input type="radio" id="white" name="theme" value="2">
+                                <label for="white">Light</label>
+                            </div>
+                        </fieldset>
+                    </td>
+                </tr>
+            </table>
+
+            <button class="left-bottom" id="options">More options</button>
+            <button class="center-bottom" id="apply">Apply</button>
+
+        </section>
+        <section>
+            <h1>Themes</h1>
+
+            <fieldset id="theme-list">
+                <legend>Themes</legend>
+            </fieldset>
+
+            <button class="center-bottom" id="applyTheme">Apply</button>
+            <button class="left-bottom" id="add-theme">Add theme</button>
+        </section>
+        <section>
+            <h1>Informations</h1>
+            <p>MicaDiscord is a BetterDiscord injector developed by MissingNo.#9660 and designed by Arbitro#0153.
+            </p>
+            <button class="left-bottom" id="uninstall">Uninstall</button>
+            <p class="right-bottom" id="version">Version 1.0</p>
+        </section>
+    </main>
+</body>
+
+</html>

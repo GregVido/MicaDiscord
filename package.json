@@ -1,0 +1,24 @@
+{
+  "name": "micadiscord",
+  "version": "1.1.0",
+  "description": "",
+  "main": "main.js",
+  "dependencies": {
+    "fs-extra": "^11.1.0",
+    "mica-electron": "^1.3.0",
+    "open": "^8.4.2"
+  },
+  "scripts": {
+    "package": "electron-builder --publish never",
+    "release": "electron-builder --publish always"
+  },
+  "author": "MissingNo.#9660 and Arbitro#0153",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GregVido/MicaDiscord.git"
+  },
+  "devDependencies": {
+    "electron": "^22.3.0"
+  }
+}
