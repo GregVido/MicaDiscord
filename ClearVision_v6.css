@@ -36,10 +36,10 @@
   --background-secondary-alt: transparent;
 
   --bg-overlay-2: transparent;
-  --__header-bar-background: transparent;
+  /* --__header-bar-background: transparent; */
 
   --bg-overlay-3: transparent;
-  --background-secondary: transparent;
+  --background-secondary: rgba(0, 0, 0, .2);
 
   /* GENERAL */
   --main-font: Whitney, Helvetica Neue, Helvetica, Arial, sans-serif; /* main font for app (font must be installed) [default: Whitney, Helvetica Neue, Helvetica, Arial, sans-serif] */
