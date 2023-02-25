@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, app } = require('electron');
 const exec = require('child_process').exec;
 const path = require('path');
 const fs = require('fs-extra');
@@ -29,6 +29,12 @@ window.onload = async () => {
     const micadiscordInfo = process.env.APPDATA + '\\MicaDiscordData\\info.json';
     const micadiscordThemes = process.env.APPDATA + '\\MicaDiscordData\\themes.json';
     const micadiscordData = process.env.APPDATA + '\\MicaDiscordData\\';
+
+    let isPackaged = false;
+
+    ipcRenderer.on('packaged', (evt, enable) => {
+        isPackaged = enable;
+    });
 
     let getLastDiscordVersion = () => {
         const files = fs.readdirSync(process.env.LOCALAPPDATA + '\\Discord');
@@ -45,7 +51,7 @@ window.onload = async () => {
 
     getLastDiscordVersion();
 
-    const discord = process.env.LOCALAPPDATA + '\\Discord\\' + getLastDiscordVersion() + '\\resources\\';
+    const discord = process.env.LOCALAPPDATA + '\\Discord\\' + getLastDiscordVersion() + '\\modules\\discord_desktop_core-1\\discord_desktop_core\\';
 
     const net = require('net');
 
@@ -165,7 +171,10 @@ window.onload = async () => {
 
         try {
             await log('> Installing Mica-Electron');
-            fs.copySync(path.join(__dirname, '..', 'data'), discord + "app\\");
+            if (isPackaged)
+                await fs.copy(path.join(__dirname, '..', '..', 'data'), discord);
+            else
+                await fs.copy(path.join(__dirname, '..', 'data'), discord);
             await progress(50);
 
             await log('> Launching Discord');
@@ -195,28 +204,28 @@ window.onload = async () => {
         await log('> Check app folder');
         await progress(0);
 
-        if (fs.existsSync(discord + "app\\")) {
-            if (fs.existsSync(discord + "app\\main.js")) {
-                fs.unlinkSync(discord + "app\\main.js");
+        if (fs.existsSync(discord)) {
+            if (fs.existsSync(discord + "main.js")) {
+                fs.unlinkSync(discord + "main.js");
                 uninstallSuccess = true;
                 await log('> Delete main.js');
                 await progress(25);
             }
 
-            if (fs.existsSync(discord + "app\\injector.js")) {
-                fs.unlinkSync(discord + "app\\injector.js");
+            if (fs.existsSync(discord + "injector.js")) {
+                fs.unlinkSync(discord + "injector.js");
                 await log('> Delete injector.js');
                 await progress(50);
             }
 
-            if (fs.existsSync(discord + "app\\index.js")) {
-                fs.unlinkSync(discord + "app\\package.json");
-                fs.writeFileSync(discord + "app\\package.json", '{ "name": "app", "main": "index.js" }');
+            if (fs.existsSync(discord + "index.js")) {
+                fs.unlinkSync(discord + "package.json");
+                fs.writeFileSync(discord + "package.json", '{"name":"discord_desktop_core","version":"0.0.0","private":"true","main":"index.js"}');
                 await log('> Restore betterdiscord package.json');
                 await progress(75);
             } else {
-                if (fs.existsSync(discord + "app\\package.json")) {
-                    fs.unlinkSync(discord + "app\\package.json");
+                if (fs.existsSync(discord + "package.json")) {
+                    fs.unlinkSync(discord + "package.json");
                     uninstallSuccess = true;
                     await log('> Delete package.json');
                     await progress(75);

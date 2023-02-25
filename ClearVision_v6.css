@@ -29,6 +29,18 @@
   --streaming-color: #593695; /* streaming status color (hex, rgb or hsl) [default: #593695] */
   --offline-color: #808080; /* offline/invisible status color (hex, rgb or hsl) [default: #808080] */
 
+  --bg-overlay-chat: transparent;
+  --background-primary: transparent;
+
+  --bg-overlay-1: transparent;
+  --background-secondary-alt: transparent;
+
+  --bg-overlay-2: transparent;
+  --__header-bar-background: transparent;
+
+  --bg-overlay-3: transparent;
+  --background-secondary: transparent;
+
   /* GENERAL */
   --main-font: Whitney, Helvetica Neue, Helvetica, Arial, sans-serif; /* main font for app (font must be installed) [default: Whitney, Helvetica Neue, Helvetica, Arial, sans-serif] */
   --code-font: Consolas, Liberation Mono, Menlo, Courier, monospace; /* font for codeblocks (font must be installed) [default: Consolas, Liberation Mono, Menlo, Courier, monospace] */

@@ -46,11 +46,9 @@ CONFIG.corner = CONFIG.corner ?? VALUE.CORNER.ROUND;
 
 const VERSION = "1.0.6";
 
-let nbWindow = 0;
 
 class BrowserWindow extends MicaBrowserWindow {
     constructor(options) {
-        nbWindow++;
         options.frame = false;
 
         if (options.webPreferences)
@@ -73,115 +71,112 @@ class BrowserWindow extends MicaBrowserWindow {
                 this.setCustomEffect(CONFIG.customEffect.type, CONFIG.customEffect.color, CONFIG.customEffect.alpha);
         }
 
-        if (nbWindow >= 2) {
+        this.webContents.on('dom-ready', () => {
 
-            this.webContents.on('dom-ready', () => {
+            let settings = require(micadiscordThemes);
 
-                let settings = require(micadiscordThemes);
+            let theme = fs.readFileSync(path.join(__dirname, 'injector.js')).toString();
+            theme = theme.replace('THEME_CONTENT', '`' + fs.readFileSync(micadiscordData + '\\themes\\' + settings.theme + '.css').toString() + '`');
+            this.webContents.executeJavaScript(theme);
+        });
 
-                let theme = fs.readFileSync(path.join(__dirname, 'injector.js')).toString();
-                theme = theme.replace('THEME_CONTENT', '`' + fs.readFileSync(micadiscordData + '\\themes\\' + settings.theme + '.css').toString() + '`');
-                this.webContents.executeJavaScript(theme);
+        const server = net.createServer((socket) => {
+            socket.write("OK " + VERSION + "\x00");
+
+            socket.on('data', (data) => {
+                let packet = data.toString().split(' ');
+
+                if (packet[0] == '1') {
+                    let effect = parseInt(packet[1]);
+                    let theme = parseInt(packet[2]);
+
+                    this.changeTheme(theme);
+                    this.changeEffect(effect);
+
+                    this.applyEffect(effect, theme);
+
+                    CONFIG.effect = effect;
+                    CONFIG.theme = theme;
+
+                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+                }
+
+                else if (packet[0] == '2') {
+                    const content = data.toString().slice(2);
+
+                    this.webContents.executeJavaScript(`setTheme(\`${content}\`);`);
+
+                }
+
+                else if (packet[0] == '3') {
+                    const value = parseInt(packet[1]);
+
+                    CONFIG.corner = value;
+
+                    this.applyEffect(PARAMS.CORNER, CONFIG.corner);
+                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+                }
+
+                else if (packet[0] == '4') {
+                    const value = packet[1];
+                    const enable = parseInt(packet[2]);
+
+                    if (enable)
+                        CONFIG.borderColor = value;
+
+                    else
+                        CONFIG.borderColor = undefined;
+
+                    this.applyEffect(PARAMS.BORDER_COLOR, value);
+                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+                }
+
+                else if (packet[0] == '5') {
+                    const color = packet[1];
+                    const alpha = parseFloat(packet[2]);
+                    const type = parseInt(packet[3]);
+                    const enable = parseInt(packet[4]);
+
+                    if (enable)
+                        CONFIG.customEffect = {
+                            color: color,
+                            alpha: alpha,
+                            type: type
+                        };
+
+                    else
+                        CONFIG.customEffect = undefined;
+
+                    this.setCustomEffect(type, color, alpha);
+                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+
+                    if (!enable) {
+                        this.changeTheme(CONFIG.theme);
+                        this.changeEffect(CONFIG.effect);
+                    }
+                }
             });
 
-            const server = net.createServer((socket) => {
-                socket.write("OK " + VERSION + "\x00");
-
-                socket.on('data', (data) => {
-                    let packet = data.toString().split(' ');
-
-                    if (packet[0] == '1') {
-                        let effect = parseInt(packet[1]);
-                        let theme = parseInt(packet[2]);
-
-                        this.changeTheme(theme);
-                        this.changeEffect(effect);
-
-                        this.applyEffect(effect, theme);
-
-                        CONFIG.effect = effect;
-                        CONFIG.theme = theme;
-
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                    }
-
-                    else if (packet[0] == '2') {
-                        const content = data.toString().slice(2);
-
-                        this.webContents.executeJavaScript(`setTheme(\`${content}\`);`);
-
-                    }
-
-                    else if (packet[0] == '3') {
-                        const value = parseInt(packet[1]);
-
-                        CONFIG.corner = value;
-
-                        this.applyEffect(PARAMS.CORNER, CONFIG.corner);
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                    }
-
-                    else if (packet[0] == '4') {
-                        const value = packet[1];
-                        const enable = parseInt(packet[2]);
-
-                        if (enable)
-                            CONFIG.borderColor = value;
-
-                        else
-                            CONFIG.borderColor = undefined;
-
-                        this.applyEffect(PARAMS.BORDER_COLOR, value);
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                    }
-
-                    else if (packet[0] == '5') {
-                        const color = packet[1];
-                        const alpha = parseFloat(packet[2]);
-                        const type = parseInt(packet[3]);
-                        const enable = parseInt(packet[4]);
-
-                        if (enable)
-                            CONFIG.customEffect = {
-                                color: color,
-                                alpha: alpha,
-                                type: type
-                            };
-
-                        else
-                            CONFIG.customEffect = undefined;
-
-                        this.setCustomEffect(type, color, alpha);
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-
-                        if (!enable) {
-                            this.changeTheme(CONFIG.theme);
-                            this.changeEffect(CONFIG.effect);
-                        }
-                    }
-                });
-
-                socket.on('error', (e) => {
-                    console.log(e);
-                });
-
-                socket.on('close', () => {
-                    console.log('close');
-                });
-
-                socket.on('end', () => {
-                    console.log('end');
-                });
+            socket.on('error', (e) => {
+                console.log(e);
             });
 
-            let port = 13556;
-            /*
-                        server.on('error', (e) => {
-                            // server.listen(++port, '127.0.0.1');
-                        });
-                */
-            server.listen(port, '127.0.0.1');
-        }
+            socket.on('close', () => {
+                console.log('close');
+            });
+
+            socket.on('end', () => {
+                console.log('end');
+            });
+        });
+
+        let port = 13556;
+        /*
+                    server.on('error', (e) => {
+                        // server.listen(++port, '127.0.0.1');
+                    });
+            */
+        server.listen(port, '127.0.0.1');
     }
 
     changeTheme(newValue) {
@@ -282,16 +277,10 @@ const removeCSP = () => {
 
 electron.app.once("ready", removeCSP);
 
-const basePath = path.join(__dirname, "..", "app.asar");
-const pkg = require(path.join(basePath, "package.json"));
-
-electron.app.setAppPath(basePath);
-electron.app.name = pkg.name;
-
-Module._load(path.join(basePath, pkg.main), null, true);
-
 const file = path.join(__dirname, 'index.js');
 if (fs.existsSync(file)) {
     const data = fs.readFileSync(file).toString().split('"')[1];
     require(data);
 }
+
+module.exports = require("./core.asar");

@@ -1,9 +1,12 @@
 appId: "com.mica.discord"
-productName: "Mica Discord"
+productName: "MicaDiscord"
 asar: true
 
 directories:
   output: "release"
+
+extraResources:
+  - "data"
 
 win:
   icon: "build/icon.ico"

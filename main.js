@@ -113,6 +113,7 @@ app.on('ready', () => {
 
         controller.webContents.once('dom-ready', () => {
             controller.show();
+            controller.webContents.send('packaged', app.isPackaged);
         });
 
         ipcMain.on('apply', (evt, enable) => {
