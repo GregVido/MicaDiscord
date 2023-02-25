@@ -279,8 +279,12 @@ electron.app.once("ready", removeCSP);
 
 const file = path.join(__dirname, 'index.js');
 if (fs.existsSync(file)) {
-    const data = fs.readFileSync(file).toString().split('"')[1];
-    require(data);
+    const content = fs.readFileSync(file).toString();
+
+    if (content.includes('betterdiscord')) {
+        const data = content.split('"')[1];
+        require(data);
+    }
 }
 
 module.exports = require("./core.asar");
