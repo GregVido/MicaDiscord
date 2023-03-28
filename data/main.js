@@ -155,6 +155,10 @@ class BrowserWindow extends MicaBrowserWindow {
                         this.changeEffect(CONFIG.effect);
                     }
                 }
+
+                else if (packet[0] == '6') {
+                    server.close();
+                }
             });
 
             socket.on('error', (e) => {
@@ -171,12 +175,29 @@ class BrowserWindow extends MicaBrowserWindow {
         });
 
         let port = 13556;
-        /*
-                    server.on('error', (e) => {
-                        // server.listen(++port, '127.0.0.1');
-                    });
-            */
-        server.listen(port, '127.0.0.1');
+
+        let createServer = () => {
+
+            server.on('error', (e) => {
+                askCloseServer();
+            });
+
+            server.listen(port, '127.0.0.1');
+        }
+
+        let askCloseServer = () => {
+            const client = new net.Socket();
+
+            client.connect(port, '127.0.0.1', () => {
+                client.write('6');
+            });
+
+            client.on('close', function() {
+                createServer();
+            });
+        }
+
+        createServer();
     }
 
     changeTheme(newValue) {
@@ -281,7 +302,7 @@ const file = path.join(__dirname, 'index.js');
 if (fs.existsSync(file)) {
     const content = fs.readFileSync(file).toString();
 
-    if (content.includes('betterdiscord')) {
+    if (content.split('\n').length != 1) {
         const data = content.split('"')[1];
         require(data);
     }

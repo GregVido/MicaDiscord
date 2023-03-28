@@ -56,7 +56,7 @@ async function extractData() {
 
 async function update() {
     return new Promise((res, err) => {
-        const UPDATE_URL = 'https://www.micadiscord.com/api/update.json';
+        const UPDATE_URL = 'https://www.micadiscord.com/api/update.json?time=' + Date.now();
         const VERSION = GlobalProperties.VERSION;
 
 

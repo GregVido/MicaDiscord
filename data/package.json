@@ -4,7 +4,7 @@
   "private": "true",
   "main": "main.js",
   "dependencies": {
-    "electron": "^13.1.4",
+    "electron": "^22.3.2",
     "electron-rebuild": "^3.2.9",
     "mica-electron": "^1.1.4"
   }
