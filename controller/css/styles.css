@@ -91,7 +91,7 @@ span:hover {
 }
 
 .focus {
-    background-color: #b1b1b13b;
+    background-color: #ffffff3b;
 }
 
 .focus .border {
@@ -111,6 +111,9 @@ span:hover {
 
 section {
     display: none;
+    position: absolute;
+    min-width: calc(96% + 3px);
+    min-height: 97%;
 }
 
 .visible {
@@ -194,4 +197,32 @@ alert {
 
 * {
     user-select: none;
+}
+
+@keyframes fadeout {
+    0% {
+        opacity: 1;
+        transform: scaleY(1) translateY(0);
+    }
+    60% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 0;
+        transform: scaleY(.2) translateY(-200px);
+    }
+}
+
+@keyframes fadein {
+    0% {
+        opacity: 0;
+        transform: scaleY(0) translateY(200px);
+    }
+    60% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 1;
+        transform: scaleY(1) translateY(0);
+    }
 }

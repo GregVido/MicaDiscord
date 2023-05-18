@@ -1,5 +1,5 @@
 /*
-Copyright 2022 GregVido
+Copyright 2023 GregVido
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -80,105 +80,116 @@ class BrowserWindow extends MicaBrowserWindow {
             this.webContents.executeJavaScript(theme);
         });
 
-        const server = net.createServer((socket) => {
-            socket.write("OK " + VERSION + "\x00");
+        let port = 65321;
 
-            socket.on('data', (data) => {
-                let packet = data.toString().split(' ');
-
-                if (packet[0] == '1') {
-                    let effect = parseInt(packet[1]);
-                    let theme = parseInt(packet[2]);
-
-                    this.changeTheme(theme);
-                    this.changeEffect(effect);
-
-                    this.applyEffect(effect, theme);
-
-                    CONFIG.effect = effect;
-                    CONFIG.theme = theme;
-
-                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                }
-
-                else if (packet[0] == '2') {
-                    const content = data.toString().slice(2);
-
-                    this.webContents.executeJavaScript(`setTheme(\`${content}\`);`);
-
-                }
-
-                else if (packet[0] == '3') {
-                    const value = parseInt(packet[1]);
-
-                    CONFIG.corner = value;
-
-                    this.applyEffect(PARAMS.CORNER, CONFIG.corner);
-                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                }
-
-                else if (packet[0] == '4') {
-                    const value = packet[1];
-                    const enable = parseInt(packet[2]);
-
-                    if (enable)
-                        CONFIG.borderColor = value;
-
-                    else
-                        CONFIG.borderColor = undefined;
-
-                    this.applyEffect(PARAMS.BORDER_COLOR, value);
-                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                }
-
-                else if (packet[0] == '5') {
-                    const color = packet[1];
-                    const alpha = parseFloat(packet[2]);
-                    const type = parseInt(packet[3]);
-                    const enable = parseInt(packet[4]);
-
-                    if (enable)
-                        CONFIG.customEffect = {
-                            color: color,
-                            alpha: alpha,
-                            type: type
-                        };
-
-                    else
-                        CONFIG.customEffect = undefined;
-
-                    this.setCustomEffect(type, color, alpha);
-                    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-
-                    if (!enable) {
-                        this.changeTheme(CONFIG.theme);
-                        this.changeEffect(CONFIG.effect);
-                    }
-                }
-
-                else if (packet[0] == '6') {
-                    server.close();
-                }
-            });
-
-            socket.on('error', (e) => {
-                console.log(e);
-            });
-
-            socket.on('close', () => {
-                console.log('close');
-            });
-
-            socket.on('end', () => {
-                console.log('end');
-            });
-        });
-
-        let port = 13556;
+        let server;
 
         let createServer = () => {
 
+            if (server) {
+                server.removeAllListeners()
+                server.close();
+            }
+
+            server = net.createServer((socket) => {
+                socket.write("OK " + VERSION + "\x00");
+
+                socket.on('data', (data) => {
+                    let packet = data.toString().split(' ');
+
+                    if (packet[0] == '1') {
+                        let effect = parseInt(packet[1]);
+                        let theme = parseInt(packet[2]);
+
+                        this.changeTheme(theme);
+                        this.changeEffect(effect);
+
+                        this.applyEffect(effect, theme);
+
+                        CONFIG.effect = effect;
+                        CONFIG.theme = theme;
+
+                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+                    }
+
+                    else if (packet[0] == '2') {
+                        const content = data.toString().slice(2);
+
+                        this.webContents.executeJavaScript(`setTheme(\`${content}\`);`);
+
+                    }
+
+                    else if (packet[0] == '3') {
+                        const value = parseInt(packet[1]);
+
+                        CONFIG.corner = value;
+
+                        this.applyEffect(PARAMS.CORNER, CONFIG.corner);
+                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+                    }
+
+                    else if (packet[0] == '4') {
+                        const value = packet[1];
+                        const enable = parseInt(packet[2]);
+
+                        if (enable)
+                            CONFIG.borderColor = value;
+
+                        else
+                            CONFIG.borderColor = undefined;
+
+                        this.applyEffect(PARAMS.BORDER_COLOR, value);
+                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+                    }
+
+                    else if (packet[0] == '5') {
+                        const color = packet[1];
+                        const alpha = parseFloat(packet[2]);
+                        const type = parseInt(packet[3]);
+                        const enable = parseInt(packet[4]);
+
+                        if (enable)
+                            CONFIG.customEffect = {
+                                color: color,
+                                alpha: alpha,
+                                type: type
+                            };
+
+                        else
+                            CONFIG.customEffect = undefined;
+
+                        this.setCustomEffect(type, color, alpha);
+                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
+
+                        if (!enable) {
+                            this.changeTheme(CONFIG.theme);
+                            this.changeEffect(CONFIG.effect);
+                        }
+                    }
+
+                    else if (packet[0] == '6') {
+                        server.close();
+                    }
+                });
+
+                socket.on('error', (e) => {
+                    console.log(e);
+                });
+
+                socket.on('close', () => {
+                    console.log('close');
+                });
+
+                socket.on('end', () => {
+                    console.log('end');
+                });
+            });
+
             server.on('error', (e) => {
+                askCloseServer();
+            });
+
+            server.on('close', (e) => {
                 askCloseServer();
             });
 
@@ -192,8 +203,19 @@ class BrowserWindow extends MicaBrowserWindow {
                 client.write('6');
             });
 
-            client.on('close', function() {
-                createServer();
+            client.on('error', async (e) => {
+                await electron.dialog.showMessageBox(this, {
+                    message: "Une erreur est survenue (MicaDiscord)",
+                    detail: '' + e,
+                    type: 'error',
+                    title: 'Erreur'
+                });
+                client.destroy();
+                // createServer();
+            });
+
+            client.on('close', async () => {
+                // createServer();
             });
         }
 

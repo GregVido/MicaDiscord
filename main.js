@@ -106,7 +106,7 @@ app.on('ready', () => {
             icon: path.join(__dirname, 'app.ico')
         });
 
-        controller.setMicaEffect();
+        controller.setMicaTabbedEffect();
         controller.setLightTheme();
 
         controller.loadFile(path.join(__dirname, 'controller', 'index.html'));
@@ -152,7 +152,7 @@ app.on('ready', () => {
             });
 
             options.setLightTheme();
-            options.setMicaEffect();
+            options.setMicaTabbedEffect();
 
             options.loadFile(path.join(__dirname, 'options', 'index.html'));
 

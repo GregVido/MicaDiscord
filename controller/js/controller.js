@@ -58,12 +58,18 @@ window.onload = async () => {
     Object.values(menuBts).map((btn, i) => {
         btn.addEventListener('click', () => {
             Object.values(sections).map((section) => {
-                section.style.display = 'none';
+                section.style.animation = '200ms fadeout';
+                if(section.classList.contains('visible')) {
+                    setTimeout(() => {
+                        section.classList.remove('visible');
+                    }, 200 - 5);
+                }
             })
             Object.values(menuBts).map((_btn) => {
                 _btn.classList.remove('focus');
             })
-            sections[i].style.display = 'block';
+            sections[i].classList.add('visible');
+            sections[i].style.animation = '200ms fadein';
             btn.classList.add('focus');
         });
     });
@@ -118,7 +124,7 @@ window.onload = async () => {
                 connectedInfo.setAttribute('title', "MicaDiscord n'arrive pas à se connecter à Discord");
             }
 
-            client.connect(13556, '127.0.0.1', async function () {
+            client.connect(65321, '127.0.0.1', async function () {
                 connected = true;
                 await initSocket();
             });
