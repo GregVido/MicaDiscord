@@ -49,9 +49,22 @@ window.onload = async () => {
         return output;
     }
 
+
+    let getDiscordDesktopPath = () => {
+        const PATH = process.env.LOCALAPPDATA + '\\Discord\\' + getLastDiscordVersion() + '\\modules';
+        const files = fs.readdirSync(PATH);
+
+        for (let file of files) {
+            if (file.startsWith('discord_desktop_core'))
+                return PATH + '\\' + file + '\\discord_desktop_core\\';
+        }
+
+        return PATH;
+    }
+
     getLastDiscordVersion();
 
-    const discord = process.env.LOCALAPPDATA + '\\Discord\\' + getLastDiscordVersion() + '\\modules\\discord_desktop_core-1\\discord_desktop_core\\';
+    const discord = getDiscordDesktopPath();
 
     const net = require('net');
 
@@ -59,7 +72,7 @@ window.onload = async () => {
         btn.addEventListener('click', () => {
             Object.values(sections).map((section) => {
                 section.style.animation = '200ms fadeout';
-                if(section.classList.contains('visible')) {
+                if (section.classList.contains('visible')) {
                     setTimeout(() => {
                         section.classList.remove('visible');
                     }, 200 - 5);
