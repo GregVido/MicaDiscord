@@ -21,16 +21,18 @@ header {
 }
 
 main {
-    position: relative;
+    position: absolute;
     display: inline-block;
-    width: calc(87% + 3px);
-    height: 86%;
+    width: calc(100% - 90px);
+    height: calc(100% - 40px);
     background-color: #ffffffb6;
     padding: 9px;
     border-radius: 10px;
     border: 1px solid #cecece9f;
     vertical-align: top;
     overflow: hidden;
+    top: 10px;
+    right: 10px;
 }
 
 #theme-list {
@@ -127,7 +129,7 @@ button {
     transition: .2s background;
 }
 
-button:hover  {
+button:hover {
     background: #ebebeb;
 }
 
@@ -204,9 +206,11 @@ alert {
         opacity: 1;
         transform: scaleY(1) translateY(0);
     }
+
     60% {
         opacity: 0;
     }
+
     100% {
         opacity: 0;
         transform: scaleY(.2) translateY(-200px);
@@ -218,9 +222,11 @@ alert {
         opacity: 0;
         transform: scaleY(0) translateY(200px);
     }
+
     60% {
         opacity: 1;
     }
+
     100% {
         opacity: 1;
         transform: scaleY(1) translateY(0);

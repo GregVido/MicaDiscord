@@ -93,12 +93,12 @@ app.on('ready', () => {
         loader.hide();
 
         const controller = new MicaBrowserWindow({
-            width: 600,
-            height: 300,
+            width: 650,
+            height: 320,
             autoHideMenuBar: true,
             show: false,
             maximizable: false,
-            resizable: false,
+            resizable: true,
             webPreferences: {
                 nodeIntegration: true,
                 contextIsolation: false,
