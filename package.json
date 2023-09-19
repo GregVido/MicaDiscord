@@ -1,6 +1,6 @@
 {
   "name": "micadiscord",
-  "version": "1.1.5",
+  "version": "1.1.6",
   "description": "MicaDiscord is a tool to change the design of the Discord app.",
   "main": "main.js",
   "dependencies": {
