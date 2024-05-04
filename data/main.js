@@ -80,6 +80,8 @@ class BrowserWindow extends MicaBrowserWindow {
             this.webContents.executeJavaScript(theme);
         });
 
+        // this.webContents.openDevTools();
+
         let port = 65321;
 
         let server;
@@ -311,14 +313,16 @@ require.cache[electronPath].exports = { ...electron, BrowserWindow };
 
 const removeCSP = () => {
     electron.session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-        if (!details.responseHeaders["content-security-policy-report-only"] && !details.responseHeaders["content-security-policy"]) return callback({ cancel: false });
+        if (!details.responseHeaders["content-security-policy-report-only"] && !details.responseHeaders["content-security-policy"]) 
+            return callback({ cancel: false });
+
         delete details.responseHeaders["content-security-policy-report-only"];
         delete details.responseHeaders["content-security-policy"];
         callback({ cancel: false, responseHeaders: details.responseHeaders });
     });
 };
 
-electron.app.once("ready", removeCSP);
+removeCSP();
 
 const file = path.join(__dirname, 'index.js');
 if (fs.existsSync(file)) {
