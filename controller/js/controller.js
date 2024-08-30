@@ -190,10 +190,21 @@ window.onload = async () => {
 
         try {
             await log('> Installing Mica-Electron');
-            if (isPackaged)
-                await fs.copy(path.join(__dirname, '..', '..', 'data'), discord);
-            else
-                await fs.copy(path.join(__dirname, '..', 'data'), discord);
+
+            let found = false;
+            let prevFolder = ['..'];
+
+            while (!found) {
+                if (fs.existsSync(path.join(__dirname, ...prevFolder, 'data'))) {
+                    await fs.copy(path.join(__dirname, ...prevFolder, 'data'), discord);
+                    found = true;
+                }
+
+                else
+                    prevFolder.push('..');
+
+            }
+
             await progress(50);
 
             await log('> Launching Discord');
@@ -207,6 +218,7 @@ window.onload = async () => {
             await progress(100);
         }
         catch (e) {
+            console.log(__dirname);
             console.log(e);
             installfunc();
         }

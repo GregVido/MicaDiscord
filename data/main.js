@@ -63,6 +63,8 @@ class BrowserWindow extends MicaBrowserWindow {
 
         this.applyEffect(PARAMS.CORNER, CONFIG.corner);
 
+        this.alwaysFocused(true);
+
         if (CONFIG.borderColor)
             this.applyEffect(PARAMS.BORDER_COLOR, CONFIG.borderColor);
 
