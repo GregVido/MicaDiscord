@@ -1,6 +1,6 @@
 {
   "name": "micadiscord",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "MicaDiscord is a tool to change the design of the Discord app.",
   "main": "main.js",
   "dependencies": {
@@ -19,6 +19,7 @@
     "url": "https://github.com/GregVido/MicaDiscord.git"
   },
   "devDependencies": {
-    "electron": "^22.3.0"
+    "electron": "^22.3.0",
+    "electron-builder": "^26.8.1"
   }
 }

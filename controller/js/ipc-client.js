@@ -1,5 +1,12 @@
 const net = require('net');
-const { PIPE_PATH, createMessageParser, sendMessage } = require('../../data/shared/ipc');
+
+let PIPE_PATH, createMessageParser, sendMessage;
+
+try {
+    ({ PIPE_PATH, createMessageParser, sendMessage } = require('../../data/shared/ipc'));
+} catch (err) {
+    ({ PIPE_PATH, createMessageParser, sendMessage } = require('../../../data/shared/ipc'));
+}
 
 class DiscordIpcClient {
     constructor() {
