@@ -1,244 +1,239 @@
-/*
-Copyright 2023 GregVido
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-
 const electron = require('electron');
 const Module = require("module");
 const path = require('path');
-const net = require('net');
 const fs = require('fs');
+const net = require('net');
 
 const { PARAMS, VALUE, MicaBrowserWindow } = require('mica-electron');
+const { PIPE_PATH, createMessageParser, sendMessage } = require('./shared/ipc.js');
 
-const micadiscord = process.env.APPDATA + '\\MicaDiscordData\\settings.json';
-const micadiscordThemes = process.env.APPDATA + '\\MicaDiscordData\\themes.json';
-const micadiscordData = process.env.APPDATA + '\\MicaDiscordData\\';
+const micadiscord = path.join(process.env.APPDATA, 'MicaDiscordData', 'settings.json');
+const micadiscordThemes = path.join(process.env.APPDATA, 'MicaDiscordData', 'themes.json');
+const micadiscordData = path.join(process.env.APPDATA, 'MicaDiscordData');
 
-const CONFIG = {};
-CONFIG.effect = PARAMS.BACKGROUND.MICA;
-CONFIG.theme = VALUE.THEME.DARK;
-CONFIG.corner = VALUE.CORNER.ROUND;
+const VERSION = '1.0.6';
 
-if (!fs.existsSync(micadiscord))
-    fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-else {
-    CONFIG.effect = require(micadiscord).effect;
-    CONFIG.theme = require(micadiscord).theme;
-    CONFIG.corner = require(micadiscord).corner;
-    CONFIG.borderColor = require(micadiscord).borderColor;
-    CONFIG.customEffect = require(micadiscord).customEffect;
+function readJson(file, fallback = {}) {
+    try {
+        if (!fs.existsSync(file)) return fallback;
+        return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+        return fallback;
+    }
 }
 
-CONFIG.corner = CONFIG.corner ?? VALUE.CORNER.ROUND;
+function writeJson(file, value) {
+    fs.writeFileSync(file, JSON.stringify(value, null, 2), 'utf8');
+}
 
-const VERSION = "1.0.6";
+const defaultConfig = {
+    effect: PARAMS.BACKGROUND.MICA,
+    theme: VALUE.THEME.DARK,
+    corner: VALUE.CORNER.ROUND,
+    borderColor: undefined,
+    customEffect: undefined,
+};
 
+const CONFIG = { ...defaultConfig, ...readJson(micadiscord, {}) };
 
 class BrowserWindow extends MicaBrowserWindow {
     constructor(options) {
         options.frame = false;
-
-        if (options.webPreferences)
-            options.webPreferences.nodeIntegration = true;
-        else
-            options.webPreferences = { nodeIntegration: true };
+        options.webPreferences = {
+            ...(options.webPreferences || {}),
+            nodeIntegration: true,
+        };
 
         super(options);
 
+        this.ipcClients = new Set();
+        this.ipcServer = null;
+        this.themeCssLoaded = false;
+
+        this.applyCurrentConfig();
+        this.setupThemeInjection();
+        this.startIpcServer();
+    }
+
+    applyCurrentConfig() {
         this.changeTheme(CONFIG.theme);
         this.changeEffect(CONFIG.effect);
-
         this.applyEffect(PARAMS.CORNER, CONFIG.corner);
-
         this.alwaysFocused(true);
 
-        if (CONFIG.borderColor)
+        if (CONFIG.borderColor) {
             this.applyEffect(PARAMS.BORDER_COLOR, CONFIG.borderColor);
-
-        if (CONFIG.customEffect) {
-            if (CONFIG.customEffect.color && CONFIG.customEffect.alpha != undefined && CONFIG.customEffect.type)
-                this.setCustomEffect(CONFIG.customEffect.type, CONFIG.customEffect.color, CONFIG.customEffect.alpha);
         }
 
+        if (CONFIG.customEffect?.color && CONFIG.customEffect?.alpha != null && CONFIG.customEffect?.type != null) {
+            this.setCustomEffect(CONFIG.customEffect.type, CONFIG.customEffect.color, CONFIG.customEffect.alpha);
+        }
+    }
+
+    setupThemeInjection() {
         this.webContents.on('dom-ready', () => {
+            this.injectStoredTheme();
+        });
+    }
 
-            let settings = require(micadiscordThemes);
+    injectStoredTheme() {
+        try {
+            const settings = readJson(micadiscordThemes, { theme: 'ClearVision_v6' });
+            const cssPath = path.join(micadiscordData, 'themes', `${settings.theme}.css`);
+            const injectorPath = path.join(__dirname, 'injector.js');
 
-            let theme = fs.readFileSync(path.join(__dirname, 'injector.js')).toString();
-            theme = theme.replace('THEME_CONTENT', '`' + fs.readFileSync(micadiscordData + '\\themes\\' + settings.theme + '.css').toString() + '`');
-            this.webContents.executeJavaScript(theme);
+            if (!fs.existsSync(cssPath) || !fs.existsSync(injectorPath)) return;
+
+            const css = fs.readFileSync(cssPath, 'utf8');
+            let injectorCode = fs.readFileSync(injectorPath, 'utf8');
+            injectorCode = injectorCode.replace('THEME_CONTENT', '`' + css.replace(/`/g, '\\`') + '`');
+
+            this.webContents.executeJavaScript(`
+            try {
+                if (typeof window.clearTheme === 'function') {
+                    window.clearTheme();
+                }
+            } catch (e) {}
+        `).catch(() => { });
+
+            this.webContents.executeJavaScript(injectorCode).catch(console.error);
+            this.themeCssLoaded = true;
+        } catch (err) {
+            console.error('Theme injection failed:', err);
+        }
+    }
+
+    startIpcServer() {
+        try {
+            if (process.platform === 'win32' || !fs.existsSync(PIPE_PATH)) {
+                // no-op
+            } else {
+                fs.unlinkSync(PIPE_PATH);
+            }
+        } catch { }
+
+        this.ipcServer = net.createServer((socket) => {
+            this.ipcClients.add(socket);
+
+            sendMessage(socket, {
+                type: 'hello',
+                version: VERSION,
+                connected: true,
+            });
+
+            const parse = createMessageParser((msg) => this.handleIpcMessage(socket, msg));
+            socket.on('data', parse);
+
+            socket.on('close', () => {
+                this.ipcClients.delete(socket);
+            });
+
+            socket.on('error', (err) => {
+                console.error('IPC client error:', err);
+                this.ipcClients.delete(socket);
+            });
         });
 
-        // this.webContents.openDevTools();
+        this.ipcServer.on('error', (err) => {
+            console.error('IPC server error:', err);
+        });
 
-        let port = 65321;
+        this.ipcServer.listen(PIPE_PATH, () => {
+            console.log('IPC server listening on', PIPE_PATH);
+        });
+    }
 
-        let server;
+    handleIpcMessage(socket, msg) {
+        try {
+            switch (msg.type) {
+                case 'ping':
+                    sendMessage(socket, { type: 'pong', version: VERSION });
+                    break;
 
-        let createServer = () => {
+                case 'applyAppearance':
+                    this.changeTheme(msg.theme);
+                    this.changeEffect(msg.effect);
+                    CONFIG.theme = msg.theme;
+                    CONFIG.effect = msg.effect;
+                    writeJson(micadiscord, CONFIG);
+                    sendMessage(socket, { type: 'ack', action: msg.type });
+                    break;
 
-            if (server) {
-                server.removeAllListeners()
-                server.close();
+                case 'applyThemeCss':
+                    if (typeof msg.css === 'string') {
+                        this.webContents.executeJavaScript(`
+                            if (typeof window.setTheme === 'function') {
+                                window.setTheme(${JSON.stringify(msg.css)});
+                            }
+                        `).catch(console.error);
+
+                        sendMessage(socket, { type: 'ack', action: msg.type });
+                    }
+                    break;
+
+                case 'setCorner':
+                    CONFIG.corner = msg.value;
+                    this.applyEffect(PARAMS.CORNER, CONFIG.corner);
+                    writeJson(micadiscord, CONFIG);
+                    sendMessage(socket, { type: 'ack', action: msg.type });
+                    break;
+
+                case 'setBorderColor':
+                    CONFIG.borderColor = msg.enabled ? msg.value : undefined;
+                    if (msg.enabled) {
+                        this.applyEffect(PARAMS.BORDER_COLOR, msg.value);
+                    }
+                    writeJson(micadiscord, CONFIG);
+                    sendMessage(socket, { type: 'ack', action: msg.type });
+                    break;
+
+                case 'setCustomEffect':
+                    if (msg.enabled) {
+                        CONFIG.customEffect = {
+                            color: msg.color,
+                            alpha: msg.alpha,
+                            type: msg.kind,
+                        };
+                        this.setCustomEffect(msg.kind, msg.color, msg.alpha);
+                    } else {
+                        CONFIG.customEffect = undefined;
+                        this.changeTheme(CONFIG.theme);
+                        this.changeEffect(CONFIG.effect);
+                    }
+
+                    writeJson(micadiscord, CONFIG);
+                    sendMessage(socket, { type: 'ack', action: msg.type });
+                    break;
+
+                case 'getState':
+                    sendMessage(socket, {
+                        type: 'state',
+                        connected: true,
+                        version: VERSION,
+                        config: CONFIG,
+                    });
+                    break;
             }
-
-            server = net.createServer((socket) => {
-                socket.write("OK " + VERSION + "\x00");
-
-                socket.on('data', (data) => {
-                    let packet = data.toString().split(' ');
-
-                    if (packet[0] == '1') {
-                        let effect = parseInt(packet[1]);
-                        let theme = parseInt(packet[2]);
-
-                        this.changeTheme(theme);
-                        this.changeEffect(effect);
-
-                        this.applyEffect(effect, theme);
-
-                        CONFIG.effect = effect;
-                        CONFIG.theme = theme;
-
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                    }
-
-                    else if (packet[0] == '2') {
-                        const content = data.toString().slice(2);
-
-                        this.webContents.executeJavaScript(`setTheme(\`${content}\`);`);
-
-                    }
-
-                    else if (packet[0] == '3') {
-                        const value = parseInt(packet[1]);
-
-                        CONFIG.corner = value;
-
-                        this.applyEffect(PARAMS.CORNER, CONFIG.corner);
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                    }
-
-                    else if (packet[0] == '4') {
-                        const value = packet[1];
-                        const enable = parseInt(packet[2]);
-
-                        if (enable)
-                            CONFIG.borderColor = value;
-
-                        else
-                            CONFIG.borderColor = undefined;
-
-                        this.applyEffect(PARAMS.BORDER_COLOR, value);
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-                    }
-
-                    else if (packet[0] == '5') {
-                        const color = packet[1];
-                        const alpha = parseFloat(packet[2]);
-                        const type = parseInt(packet[3]);
-                        const enable = parseInt(packet[4]);
-
-                        if (enable)
-                            CONFIG.customEffect = {
-                                color: color,
-                                alpha: alpha,
-                                type: type
-                            };
-
-                        else
-                            CONFIG.customEffect = undefined;
-
-                        this.setCustomEffect(type, color, alpha);
-                        fs.writeFileSync(micadiscord, JSON.stringify(CONFIG));
-
-                        if (!enable) {
-                            this.changeTheme(CONFIG.theme);
-                            this.changeEffect(CONFIG.effect);
-                        }
-                    }
-
-                    else if (packet[0] == '6') {
-                        server.close();
-                    }
-                });
-
-                socket.on('error', (e) => {
-                    console.log(e);
-                });
-
-                socket.on('close', () => {
-                    console.log('close');
-                });
-
-                socket.on('end', () => {
-                    console.log('end');
-                });
-            });
-
-            server.on('error', (e) => {
-                askCloseServer();
-            });
-
-            server.on('close', (e) => {
-                askCloseServer();
-            });
-
-            server.listen(port, '127.0.0.1');
-        }
-
-        let askCloseServer = () => {
-            const client = new net.Socket();
-
-            client.connect(port, '127.0.0.1', () => {
-                client.write('6');
-            });
-
-            client.on('error', async (e) => {
-                await electron.dialog.showMessageBox(this, {
-                    message: "Une erreur est survenue (MicaDiscord)",
-                    detail: '' + e,
-                    type: 'error',
-                    title: 'Erreur'
-                });
-                client.destroy();
-                // createServer();
-            });
-
-            client.on('close', async () => {
-                // createServer();
+        } catch (err) {
+            console.error('IPC message error:', err);
+            sendMessage(socket, {
+                type: 'error',
+                message: String(err?.message || err),
             });
         }
-
-        createServer();
     }
 
     changeTheme(newValue) {
         switch (newValue) {
             case VALUE.THEME.AUTO:
                 this.setAutoTheme();
-                break
-
+                break;
             case VALUE.THEME.LIGHT:
                 this.setLightTheme();
-                break
-
+                break;
             case VALUE.THEME.DARK:
                 this.setDarkTheme();
-                break
+                break;
         }
     }
 
@@ -246,16 +241,13 @@ class BrowserWindow extends MicaBrowserWindow {
         switch (newParams) {
             case PARAMS.BACKGROUND.MICA:
                 this.setMicaEffect();
-                break
-
+                break;
             case PARAMS.BACKGROUND.TABBED_MICA:
                 this.setMicaTabbedEffect();
-                break
-
+                break;
             case PARAMS.BACKGROUND.ACRYLIC:
                 this.setMicaAcrylicEffect();
-                break
-
+                break;
         }
     }
 
@@ -265,46 +257,41 @@ class BrowserWindow extends MicaBrowserWindow {
                 switch (value) {
                     case VALUE.CORNER.ROUND:
                         this.setRoundedCorner();
-                        break
-
+                        break;
                     case VALUE.CORNER.ROUNDSMALL:
                         this.setSmallRoundedCorner();
-                        break
-
+                        break;
                     case VALUE.CORNER.DONOTROUND:
                         this.setSquareCorner();
-                        break
+                        break;
                 }
-                break
+                break;
 
             case PARAMS.BORDER_COLOR:
                 this.setBorderColor(value);
-                break
+                break;
 
             case PARAMS.CAPTION_COLOR:
                 this.setCaptionColor(value);
-                break
+                break;
 
             case PARAMS.TEXT_COLOR:
                 this.setTitleTextColor(value);
-                break
+                break;
 
             case 10:
                 switch (value) {
                     case 0:
                         this.setTransparent();
-                        break
-
+                        break;
                     case 1:
                         this.setBlur();
-                        break
-
+                        break;
                     case 2:
                         this.setAcrylic();
-                        break
+                        break;
                 }
-                break
-
+                break;
         }
     }
 }
@@ -315,7 +302,7 @@ require.cache[electronPath].exports = { ...electron, BrowserWindow };
 
 const removeCSP = () => {
     electron.session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-        if (!details.responseHeaders["content-security-policy-report-only"] && !details.responseHeaders["content-security-policy"]) 
+        if (!details.responseHeaders["content-security-policy-report-only"] && !details.responseHeaders["content-security-policy"])
             return callback({ cancel: false });
 
         delete details.responseHeaders["content-security-policy-report-only"];

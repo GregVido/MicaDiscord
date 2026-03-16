@@ -1,5 +1,5 @@
 /*
-Copyright 2022 GregVido
+Copyright 2026 GregVido
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,35 +15,159 @@ limitations under the License.
 */
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
-const { PARAMS, VALUE, MicaBrowserWindow } = require('mica-electron');
+const { MicaBrowserWindow } = require('mica-electron');
 const open = require('open');
 const path = require('path');
 
-app.commandLine.appendSwitch("enable-transparent-visuals");
+app.commandLine.appendSwitch('enable-transparent-visuals');
 
-const fs = require('fs');
+const ICON_PATH = path.join(__dirname, 'app.ico');
 
-app.on('ready', () => {
-    const loader = new BrowserWindow({
-        width: 300,
-        height: 150,
+function createLoaderWindow() {
+    const loader = new MicaBrowserWindow({
+        width: 520,
+        height: 320,
+        minWidth: 520,
+        minHeight: 320,
+        maxWidth: 520,
+        maxHeight: 320,
+        useContentSize: true,
+        center: true,
         autoHideMenuBar: true,
         show: false,
         frame: false,
+        transparent: true,
+        resizable: false,
         maximizable: false,
-        resizable: true,
+        minimizable: false,
+        fullscreenable: false,
+        backgroundColor: '#00000000',
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'app.ico')
+        icon: ICON_PATH
     });
+
+    loader.setRoundedCorner();
+    loader.setDarkTheme();
+    loader.setMicaTabbedEffect();
 
     loader.loadFile(path.join(__dirname, 'loader', 'index.html'));
 
     loader.webContents.once('dom-ready', () => {
         loader.show();
     });
+
+    return loader;
+}
+
+function createErrorWindow() {
+    const error = new BrowserWindow({
+        width: 620,
+        height: 340,
+        minWidth: 620,
+        minHeight: 340,
+        maxWidth: 620,
+        maxHeight: 340,
+        useContentSize: true,
+        center: true,
+        autoHideMenuBar: true,
+        show: true,
+        resizable: false,
+        maximizable: false,
+        minimizable: true,
+        fullscreenable: false,
+        icon: ICON_PATH,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        }
+    });
+
+    error.loadFile(path.join(__dirname, 'error', 'index.html'));
+
+    error.on('close', () => {
+        app.quit();
+    });
+
+    return error;
+}
+
+function createControllerWindow() {
+    const controller = new MicaBrowserWindow({
+        width: 960,
+        height: 600,
+        minWidth: 960,
+        minHeight: 600,
+        useContentSize: true,
+        center: true,
+        autoHideMenuBar: true,
+        show: false,
+        resizable: true,
+        maximizable: false,
+        fullscreenable: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: ICON_PATH
+    });
+
+    controller.setRoundedCorner();
+    controller.setDarkTheme();
+    controller.setMicaTabbedEffect();
+
+    controller.loadFile(path.join(__dirname, 'controller', 'index.html'));
+
+    controller.webContents.once('dom-ready', () => {
+        controller.show();
+        controller.webContents.send('packaged', app.isPackaged);
+    });
+
+    controller.on('close', () => {
+        app.quit();
+    });
+
+    return controller;
+}
+
+function createOptionsWindow() {
+    const options = new MicaBrowserWindow({
+        width: 760,
+        height: 620,
+        minWidth: 720,
+        minHeight: 560,
+        useContentSize: true,
+        center: true,
+        autoHideMenuBar: true,
+        show: false,
+        resizable: false,
+        maximizable: false,
+        minimizable: true,
+        fullscreenable: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: ICON_PATH
+    });
+
+    options.setRoundedCorner();
+    options.setDarkTheme();
+    options.setMicaTabbedEffect();
+
+    options.loadFile(path.join(__dirname, 'options', 'index.html'));
+
+    options.webContents.once('dom-ready', () => {
+        options.show();
+    });
+
+    return options;
+}
+
+app.whenReady().then(() => {
+    const loader = createLoaderWindow();
 
     ipcMain.once('update', async (event) => {
         const options = {
@@ -55,71 +179,38 @@ app.on('ready', () => {
         };
 
         const result = await dialog.showMessageBox(loader, options);
-        
-        if(result.response == 1) {
-            open("https://github.com/GregVido/MicaDiscord");
-            setTimeout(app.quit, 1000);
-        }
-        else
+
+        if (result.response === 1) {
+            open('https://github.com/GregVido/MicaDiscord');
+            setTimeout(() => app.quit(), 1000);
+        } else {
             event.sender.send('res');
-        
+        }
     });
 
-    ipcMain.once('error', (event) => {
-        loader.hide();
+    ipcMain.once('error', () => {
+        if (!loader.isDestroyed()) {
+            loader.hide();
+        }
 
-        const error = new BrowserWindow({
-            width: 600,
-            height: 300,
-            autoHideMenuBar: true,
-            show: true,
-            maximizable: false,
-            resizable: false,
-            icon: path.join(__dirname, 'app.ico')
-        });
-
-        error.loadFile(path.join(__dirname, 'error', 'index.html'));
-
-        error.on("close", () => {
-            app.quit();
-        });
+        createErrorWindow();
     });
 
-    ipcMain.once('kill', (event) => {
+    ipcMain.once('kill', () => {
         app.quit();
     });
 
-    ipcMain.once('getController', (event) => {
-        loader.hide();
+    ipcMain.once('getController', () => {
+        if (!loader.isDestroyed()) {
+            loader.hide();
+        }
 
-        const controller = new MicaBrowserWindow({
-            width: 650,
-            height: 320,
-            autoHideMenuBar: true,
-            show: false,
-            maximizable: false,
-            resizable: true,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false,
-            },
-            icon: path.join(__dirname, 'app.ico')
-        });
+        const controller = createControllerWindow();
 
-        controller.setMicaTabbedEffect();
-        controller.setLightTheme();
-
-        controller.loadFile(path.join(__dirname, 'controller', 'index.html'));
-
-        controller.webContents.once('dom-ready', () => {
-            controller.show();
-            controller.webContents.send('packaged', app.isPackaged);
-        });
-
-        ipcMain.on('apply', (evt, enable) => {
+        ipcMain.on('apply', (_evt, enable) => {
             if (!enable) {
                 dialog.showMessageBoxSync(controller, {
-                    message: "MicaDiscord ne peut pas appliquer les effets :/",
+                    message: 'MicaDiscord ne peut pas appliquer les effets :/',
                     detail: 'Vous pouvez appliquer les effets seulement lorsque MicaDiscord est connecté à Discord.',
                     type: 'error',
                     title: 'Erreur'
@@ -127,55 +218,33 @@ app.on('ready', () => {
             }
         });
 
-        ipcMain.on('noVersion', (evt,) => {
+        ipcMain.on('noVersion', () => {
             dialog.showMessageBoxSync(controller, {
-                message: "MicaDiscord est pas à jour ?",
+                message: 'MicaDiscord est pas à jour ?',
                 detail: 'Discord ne possède pas la dernière version de MicaDiscord installé.',
                 type: 'error',
                 title: 'Erreur'
             });
         });
 
-        ipcMain.on('options', (evt) => {
-            const options = new MicaBrowserWindow({
-                width: 600,
-                height: 390,
-                autoHideMenuBar: true,
-                show: false,
-                maximizable: false,
-                resizable: false,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                },
-                icon: path.join(__dirname, 'app.ico')
-            });
-
-            options.setLightTheme();
-            options.setMicaTabbedEffect();
-
-            options.loadFile(path.join(__dirname, 'options', 'index.html'));
-
-            options.webContents.once('dom-ready', () => {
-                options.show();
-            });
+        ipcMain.on('options', () => {
+            createOptionsWindow();
         });
 
-        ipcMain.on('corner', (evt, value) => {
+        ipcMain.on('corner', (_evt, value) => {
             controller.webContents.send('corner', value);
         });
 
-        ipcMain.on('borderColor', (evt, value, enable) => {
+        ipcMain.on('borderColor', (_evt, value, enable) => {
             controller.webContents.send('borderColor', value, enable);
         });
 
-        ipcMain.on('backgroundColor', (evt, color, alpha, type, enable) => {
+        ipcMain.on('backgroundColor', (_evt, color, alpha, type, enable) => {
             controller.webContents.send('backgroundColor', color, alpha, type, enable);
         });
-
-
-        controller.on("close", () => {
-            app.quit();
-        });
     });
+});
+
+app.on('window-all-closed', () => {
+    app.quit();
 });

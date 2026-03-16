@@ -1,105 +1,147 @@
-/*
-Copyright 2022 GregVido
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
-const { ipcRenderer } = require('electron')
+const { ipcRenderer } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
 const GlobalProperties = require('../GlobalProperties.js');
-const micadiscordThemes = process.env.APPDATA + '\\MicaDiscordData\\themes.json';
+
+const dataDir = path.join(process.env.APPDATA, 'MicaDiscordData');
+const themesDir = path.join(dataDir, 'themes');
+const themesFile = path.join(dataDir, 'themes.json');
+
+/* Bundled themes folder */
+const bundledThemesDir = path.join(__dirname, '..', 'themes');
+
+const statusEl = document.getElementById('status');
+
+function setStatus(message) {
+    if (statusEl) statusEl.textContent = message;
+}
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function copyDirectoryRecursive(sourceDir, targetDir) {
+    if (!fs.existsSync(sourceDir)) {
+        throw new Error(`Bundled themes directory not found: ${sourceDir}`);
+    }
+
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const sourcePath = path.join(sourceDir, entry.name);
+        const targetPath = path.join(targetDir, entry.name);
+
+        if (entry.isDirectory()) {
+            copyDirectoryRecursive(sourcePath, targetPath);
+        } else if (entry.isFile()) {
+            fs.copyFileSync(sourcePath, targetPath);
+        }
+    }
+}
+
+function getDefaultThemeName() {
+    if (!fs.existsSync(bundledThemesDir)) {
+        return null;
+    }
+
+    const entries = fs
+        .readdirSync(bundledThemesDir, { withFileTypes: true })
+        .filter(entry => entry.isFile() && entry.name.toLowerCase().endsWith('.css'))
+        .map(entry => entry.name);
+
+    if (entries.length === 0) {
+        return null;
+    }
+
+    return path.basename(entries[0], '.css');
+}
 
 async function getValidVersion() {
-    return new Promise((res, err) => {
-        const data = os.release().split('.');
-        const version = parseInt(data[0]);
-        const minor = parseInt(data[2]);
+    const release = os.release().split('.');
+    const major = Number.parseInt(release[0], 10);
+    const build = Number.parseInt(release[2], 10);
 
-        const hasError = !(version >= 10 && minor >= 22000);
+    await delay(700);
 
-        setTimeout(res, 1000, hasError ? "error" : "");
-    })
+    return major >= 10 && build >= 22000;
 }
 
 async function extractData() {
-    return new Promise((res, err) => {
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.mkdirSync(themesDir, { recursive: true });
 
-        const dir = process.env.APPDATA + "\\MicaDiscordData\\";
+    /* Copy every bundled theme file/folder into the user themes directory */
+    copyDirectoryRecursive(bundledThemesDir, themesDir);
 
-        if (!fs.existsSync(dir))
-            fs.mkdirSync(dir);
+    /* Create themes.json only if it does not exist yet */
+    if (!fs.existsSync(themesFile)) {
+        const defaultTheme = getDefaultThemeName();
 
-        if (!fs.existsSync(micadiscordThemes))
-            fs.writeFileSync(micadiscordThemes, JSON.stringify({ theme: 'ClearVision_v6' }));
+        fs.writeFileSync(
+            themesFile,
+            JSON.stringify(
+                { theme: defaultTheme || null },
+                null,
+                2
+            ),
+            'utf8'
+        );
+    }
 
-        if (!fs.existsSync(dir + 'themes\\'))
-            fs.mkdirSync(dir + 'themes\\');
-
-        fs.copyFileSync(path.join(__dirname, '..', 'ClearVision_v6.css'), dir + 'themes\\ClearVision_v6.css');
-
-        setTimeout(res, 500, true);
-    })
+    await delay(500);
 }
 
 async function update() {
-    return new Promise((res, err) => {
-        const UPDATE_URL = 'https://www.micadiscord.com/api/update.json?time=' + Date.now();
-        const VERSION = GlobalProperties.VERSION;
+    const UPDATE_URL = `https://www.micadiscord.com/api/update.json?time=${Date.now()}`;
+    const VERSION = GlobalProperties.VERSION;
 
+    try {
+        const response = await fetch(UPDATE_URL);
+        const params = await response.json();
 
-        fetch(UPDATE_URL).then((r) => {
-            r.text().then((d) => {
-                let params = JSON.parse(d);
-                
-                ipcRenderer.on('res', () => {
-                    res(false);
-                });
+        if (params.version === VERSION) {
+            return false;
+        }
 
-                if (params.version == VERSION)
-                    res(false);
-                else 
-                    ipcRenderer.send('update');
-            })
+        return await new Promise((resolve) => {
+            ipcRenderer.once('res', () => resolve(false));
+            ipcRenderer.send('update');
         });
-    });
+    } catch (error) {
+        console.error('Update check failed:', error);
+        return false;
+    }
 }
 
-window.onload = async () => {
+window.addEventListener('DOMContentLoaded', async () => {
+    try {
+        setStatus('Checking for updates...');
+        const hasUpdate = await update();
 
-    const infoTxt = document.querySelector('span');
+        if (hasUpdate) return;
 
-    const hasUdpate = await update();
-
-    if (!hasUdpate) {
-
-        infoTxt.innerText = "Operating system detection ...";
-
+        setStatus('Checking operating system compatibility...');
         const isWin11 = await getValidVersion();
 
-        if (isWin11 == "error")
+        if (!isWin11) {
             ipcRenderer.send('error');
-
-        else {
-            infoTxt.innerText = "Extracting resources ...";
-
-            await extractData();
-
-            ipcRenderer.send('getController');
+            return;
         }
+
+        setStatus('Preparing resources...');
+        await extractData();
+
+        setStatus('Launching MicaDiscord...');
+        await delay(300);
+
+        ipcRenderer.send('getController');
+    } catch (error) {
+        console.error('Loader error:', error);
+        setStatus('An error occurred...');
+        ipcRenderer.send('error');
     }
-
-
-}
+});

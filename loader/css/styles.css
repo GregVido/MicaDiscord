@@ -1,23 +1,204 @@
+:root {
+    color-scheme: dark;
+
+    --text: rgba(255, 255, 255, 0.96);
+    --muted: rgba(223, 231, 255, 0.66);
+
+    --border-soft: rgba(255, 255, 255, 0.08);
+    --border-mid: rgba(255, 255, 255, 0.14);
+
+    --surface-1: rgba(14, 22, 46, 0.72);
+    --surface-2: rgba(10, 18, 40, 0.82);
+
+    --accent: #7c9cff;
+    --accent-2: #5d7cff;
+    --accent-3: #8d6bff;
+
+    --shadow-xl: 0 30px 90px rgba(0, 0, 0, 0.42);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.24);
+
+    --radius-xl: 28px;
+    --radius-lg: 22px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
 html,
 body {
     margin: 0;
-    min-height: 100%;
-    -webkit-user-select: none;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
     user-select: none;
+    -webkit-user-select: none;
     -webkit-app-region: drag;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
-.fa {
-    position: absolute;
-    left: calc(50% - 16px);
-    top: calc(50% - 16px);
-    font-size: 32px;
+body {
+    position: relative;
 }
 
-span {
+/* Fond global plus propre, moins agressif, moins pixelisé */
+body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at 18% 20%, rgba(108, 138, 255, 0.18), transparent 34%),
+        radial-gradient(circle at 82% 78%, rgba(141, 107, 255, 0.16), transparent 30%),
+        radial-gradient(circle at 72% 22%, rgba(74, 129, 255, 0.12), transparent 26%);
+    filter: blur(22px);
+    transform: scale(1.08);
+}
+
+/* Léger voile pour lisser le transparent Electron */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+        linear-gradient(180deg, rgba(7, 14, 30, 0.34), rgba(8, 14, 28, 0.48));
+}
+
+.loader-shell {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+}
+
+.loader-card {
+    position: relative;
+    width: min(420px, 100%);
+    min-height: 240px;
+    padding: 30px 28px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--border-soft);
+
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.025)),
+        linear-gradient(180deg, var(--surface-1), var(--surface-2));
+
+    backdrop-filter: blur(26px) saturate(145%);
+    -webkit-backdrop-filter: blur(26px) saturate(145%);
+
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        var(--shadow-xl);
+
+    overflow: hidden;
+}
+
+/* Glow interne, plus fin */
+.loader-card::before {
+    content: "";
     position: absolute;
-    bottom: 0;
-    font-size: 12px;
-    padding: 5px;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background:
+        radial-gradient(circle at top center, rgba(124, 156, 255, 0.16), transparent 42%),
+        radial-gradient(circle at 78% 78%, rgba(141, 107, 255, 0.10), transparent 26%);
+}
+
+/* Liseré haut subtil */
+.loader-card::after {
+    content: "";
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.18),
+        transparent
+    );
+    pointer-events: none;
+}
+
+/* spinner */
+.spinner{
+    display:flex;
+    gap:8px;
+}
+
+.spinner span{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:white;
+    opacity:.25;
+    animation:dot 1.2s infinite ease-in-out;
+}
+
+.spinner span:nth-child(2){
+    animation-delay:.15s;
+}
+
+.spinner span:nth-child(3){
+    animation-delay:.3s;
+}
+
+@keyframes dot{
+    0%,80%,100%{
+        transform:scale(.6);
+        opacity:.2;
+    }
+    40%{
+        transform:scale(1);
+        opacity:1;
+    }
+}
+
+
+h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+
+#status {
+    margin: 0;
+    max-width: 280px;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: var(--muted);
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(0.82);
+        opacity: 0.72;
+    }
+    50% {
+        transform: scale(1);
+        opacity: 1;
+    }
 }

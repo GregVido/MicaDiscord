@@ -1,5 +1,5 @@
 <div align=center>
-<h1><a href="https://www.micadiscord.com/" target="_blank"><img src="https://www.micadiscord.com/img/logo.png" name="title" width="70%"></a></h1>
+<h1><a href="https://www.micadiscord.com/" target="_blank"><img src="https://www.micadiscord.com/img/logo_full.png" name="title" width="70%"></a></h1>
 
 <b>MicaDiscord</b> is a tool to change the design of the Discord app.<br>
 <a href="https://www.micadiscord.com" target="_blank">Click here</a> to visit the website.
@@ -16,3 +16,9 @@
 ## Download application
 For downloading the app, see [latest release](https://github.com/GregVido/MicaDiscord/releases/latest).
 Older versions are availabe at the [releases section](https://github.com/GregVido/MicaDiscord/releases)
+
+## ☕ Support the project
+
+If you like **Mica Electron** and want to support its development, you can buy me a coffee ❤️
+
+👉 https://www.buymeacoffee.com/gregvido

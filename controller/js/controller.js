@@ -1,29 +1,24 @@
 /*
-Copyright 2022 GregVido
+Copyright 2026 GregVido
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
 */
 
-const { ipcRenderer, app } = require('electron');
+const { ipcRenderer } = require('electron');
 const exec = require('child_process').exec;
 const path = require('path');
 const fs = require('fs-extra');
+const DiscordIpcClient = require('./js/ipc-client.js');
 
 const GlobalProperties = require('../GlobalProperties.js');
 
 window.onload = async () => {
-    const menuBts = document.querySelectorAll('span');
-    const sections = document.querySelectorAll('section');
+    const menuButtons = document.querySelectorAll('.nav-item');
+    const sections = document.querySelectorAll('.panel');
 
     const micadiscord = process.env.APPDATA + '\\MicaDiscordData\\settings.json';
     const micadiscordInfo = process.env.APPDATA + '\\MicaDiscordData\\info.json';
@@ -32,159 +27,232 @@ window.onload = async () => {
 
     let isPackaged = false;
 
-    ipcRenderer.on('packaged', (evt, enable) => {
+    ipcRenderer.on('packaged', (_evt, enable) => {
         isPackaged = enable;
     });
 
-    let getLastDiscordVersion = () => {
+    function switchSection(index) {
+        menuButtons.forEach((button) => button.classList.remove('active'));
+        sections.forEach((section) => section.classList.remove('visible'));
+
+        menuButtons[index].classList.add('active');
+        sections[index].classList.add('visible');
+    }
+
+    menuButtons.forEach((button, index) => {
+        button.addEventListener('click', () => {
+            switchSection(index);
+        });
+    });
+
+    function getLastDiscordVersion() {
         const files = fs.readdirSync(process.env.LOCALAPPDATA + '\\Discord');
         let output = '0';
 
-        for (let file of files) {
+        for (const file of files) {
             if (file.startsWith('app-')) {
-                if (file > output)
-                    output = file;
+                if (file > output) output = file;
             }
         }
+
         return output;
     }
 
+    function getDiscordDesktopPath() {
+        const basePath = process.env.LOCALAPPDATA + '\\Discord\\' + getLastDiscordVersion() + '\\modules';
+        const files = fs.readdirSync(basePath);
 
-    let getDiscordDesktopPath = () => {
-        const PATH = process.env.LOCALAPPDATA + '\\Discord\\' + getLastDiscordVersion() + '\\modules';
-        const files = fs.readdirSync(PATH);
-
-        for (let file of files) {
-            if (file.startsWith('discord_desktop_core'))
-                return PATH + '\\' + file + '\\discord_desktop_core\\';
+        for (const file of files) {
+            if (file.startsWith('discord_desktop_core')) {
+                return basePath + '\\' + file + '\\discord_desktop_core\\';
+            }
         }
 
-        return PATH;
+        return basePath;
     }
 
-    getLastDiscordVersion();
-
     const discord = getDiscordDesktopPath();
+    const client = new DiscordIpcClient();
 
-    const net = require('net');
+    let connected = false;
+    let installedVersion = '1.0';
+    let discordDetected = false;
 
-    Object.values(menuBts).map((btn, i) => {
-        btn.addEventListener('click', () => {
-            Object.values(sections).map((section) => {
-                section.style.animation = '200ms fadeout';
-                if (section.classList.contains('visible')) {
-                    setTimeout(() => {
-                        section.classList.remove('visible');
-                    }, 200 - 5);
-                }
-            })
-            Object.values(menuBts).map((_btn) => {
-                _btn.classList.remove('focus');
-            })
-            sections[i].classList.add('visible');
-            sections[i].style.animation = '200ms fadein';
-            btn.classList.add('focus');
-        });
+    const connectedInfo = document.querySelector('.connected');
+    const connectionLabel = document.getElementById('connection-label');
+    const logElement = document.querySelector('.log');
+    const progressElement = document.querySelector('progress');
+    const versionAlert = document.getElementById('version-alert');
+
+    function setConnectionState(color, title, label) {
+        connectedInfo.style.background = color;
+        connectedInfo.setAttribute('title', title);
+        connectionLabel.textContent = label;
+    }
+
+    function refreshConnectionUi() {
+        if (connected) {
+            setConnectionState(
+                'rgb(100, 202, 159)',
+                'MicaDiscord is connected to Discord',
+                'Connected'
+            );
+            return;
+        }
+
+        if (discordDetected) {
+            setConnectionState(
+                'rgb(252, 208, 10)',
+                'MicaDiscord is not installed',
+                'Discord detected'
+            );
+            return;
+        }
+
+        setConnectionState(
+            'rgb(128, 13, 13)',
+            'MicaDiscord cannot connect to Discord',
+            'Disconnected'
+        );
+    }
+
+    client.on('hello', (packet) => {
+        connected = true;
+
+        if (packet && packet.version) {
+            installedVersion = packet.version;
+        }
+
+        refreshConnectionUi();
+    });
+
+    client.on('state', (packet) => {
+        connected = true;
+
+        if (packet && packet.version) {
+            installedVersion = packet.version;
+        }
+
+        refreshConnectionUi();
+    });
+
+    client.on('disconnected', () => {
+        connected = false;
+        refreshConnectionUi();
+    });
+
+    client.on('error', () => {
+        connected = false;
+        refreshConnectionUi();
     });
 
     function discordIsOpen() {
-        return new Promise((res, err) => {
-            exec('tasklist', (err, stdout, stderr) => {
-                res(stdout.toLowerCase().includes('discord.exe'));
+        return new Promise((resolve) => {
+            exec('tasklist', (_err, stdout) => {
+                resolve(stdout.toLowerCase().includes('discord.exe'));
             });
         });
     }
 
-    var client = new net.Socket();
-    let connected = false;
-
-    const connectedInfo = document.querySelector('.connected');
-    let installedVersion = "1.0";
-
-    async function initSocket() {
-        client.on('data', async function (data) {
-            const packet = data.toString();
-
-            if (packet.startsWith('OK')) {
-
-                connectedInfo.style.color = 'rgb(100, 202, 159)';
-                connectedInfo.setAttribute('title', "MicaDiscord est connecté à Discord");
-
-                const hasVersion = packet.split(' ').length == 2;
-
-                if (hasVersion)
-                    installedVersion = packet.split(' ')[1];
-
-            }
-
-
-        });
-
-        client.on('close', async () => {
-            connected = false;
-        });
+    async function updateDiscordPresence() {
+        discordDetected = await discordIsOpen();
+        refreshConnectionUi();
     }
+
+    client.connect();
+    await updateDiscordPresence();
 
     setInterval(async () => {
         if (!connected) {
-            const discordOpened = await discordIsOpen();
-
-            if (discordOpened) {
-                connectedInfo.style.color = 'rgb(252, 208, 10)';
-                connectedInfo.setAttribute('title', "MicaDiscord n'est pas installé");
-            } else {
-                connectedInfo.style.color = 'rgb(128, 13, 1)';
-                connectedInfo.setAttribute('title', "MicaDiscord n'arrive pas à se connecter à Discord");
-            }
-
-            client.connect(65321, '127.0.0.1', async function () {
-                connected = true;
-                await initSocket();
-            });
+            await updateDiscordPresence();
         }
-    }, 1000);
+    }, 1500);
 
-    const apply = document.getElementById('apply');
-    const options = document.getElementById('options');
+    const applyButton = document.getElementById('apply');
+    const optionsButton = document.getElementById('options');
+    const installButton = document.querySelector('.download');
+    const uninstallButton = document.getElementById('uninstall');
 
-    apply.addEventListener('click', () => {
-        if (!connected)
+    applyButton.addEventListener('click', () => {
+        if (!connected) {
             ipcRenderer.send('apply', false);
-
-        else {
-            client.write(`1 ${document.querySelector('input[name="effect"]:checked').value} ${document.querySelector('input[name="theme"]:checked').value}`);
+            return;
         }
+
+        client.send({
+            type: 'applyAppearance',
+            effect: Number(document.querySelector('input[name="effect"]:checked').value),
+            theme: Number(document.querySelector('input[name="theme"]:checked').value)
+        });
     });
 
-    options.addEventListener('click', () => {
+    optionsButton.addEventListener('click', () => {
         ipcRenderer.send('options');
     });
 
-    ipcRenderer.on('corner', (evt, value) => {
-        client.write(`3 ${value}`);
+    ipcRenderer.on('corner', (_evt, value) => {
+        if (!connected) return;
+
+        client.send({
+            type: 'setCorner',
+            value: Number(value)
+        });
     });
 
-    ipcRenderer.on('borderColor', (evt, value, enable) => {
-        client.write(`4 ${value} ${enable ? 1 : 0}`);
+    ipcRenderer.on('borderColor', (_evt, value, enable) => {
+        if (!connected) return;
+
+        client.send({
+            type: 'setBorderColor',
+            value,
+            enabled: !!enable
+        });
     });
 
-    ipcRenderer.on('backgroundColor', (evt, color, alpha, type, enable) => {
-        client.write(`5 ${color} ${alpha} ${type} ${enable ? 1 : 0}`);
+    ipcRenderer.on('backgroundColor', (_evt, color, alpha, type, enable) => {
+        if (!connected) return;
+
+        client.send({
+            type: 'setCustomEffect',
+            color,
+            alpha: Number(alpha),
+            kind: Number(type),
+            enabled: !!enable
+        });
     });
 
-    const install = document.querySelector('.download');
-    const uninstall = document.getElementById('uninstall');
+    async function log(message) {
+        logElement.innerText += `${message}\n`;
+        logElement.scrollTop = logElement.scrollHeight;
+    }
 
-    let installfunc = async () => {
-        document.querySelector('.log').innerText = '';
+    async function progress(value) {
+        progressElement.value = value;
+    }
+
+    function killDiscord() {
+        return new Promise((resolve) => {
+            exec('taskkill /f /im discord.exe', () => resolve(true));
+        });
+    }
+
+    function launchDiscord() {
+        return new Promise((resolve) => {
+            exec(process.env.LOCALAPPDATA + '\\Discord\\Update.exe --processStart Discord.exe', () => {
+                resolve(true);
+            });
+        });
+    }
+
+    const installFunc = async () => {
+        logElement.innerText = '';
         await log('MicaDiscord - By GregVido and Arbitro\n');
 
         const discordOpened = await discordIsOpen();
 
         if (discordOpened) {
-            await log('> Killing discord');
+            await log('> Closing Discord');
             await progress(0);
-
             await killDiscord();
         }
 
@@ -192,17 +260,19 @@ window.onload = async () => {
             await log('> Installing Mica-Electron');
 
             let found = false;
-            let prevFolder = ['..'];
+            const previousFolders = ['..'];
 
             while (!found) {
-                if (fs.existsSync(path.join(__dirname, ...prevFolder, 'data'))) {
-                    await fs.copy(path.join(__dirname, ...prevFolder, 'data'), discord);
+                if (fs.existsSync(path.join(__dirname, ...previousFolders, 'data'))) {
+                    await fs.copy(path.join(__dirname, ...previousFolders, 'data'), discord);
                     found = true;
+                } else {
+                    previousFolders.push('..');
                 }
 
-                else
-                    prevFolder.push('..');
-
+                if (previousFolders.length > 12) {
+                    throw new Error('Unable to locate data folder.');
+                }
             }
 
             await progress(50);
@@ -210,55 +280,71 @@ window.onload = async () => {
             await log('> Launching Discord');
             await launchDiscord();
 
-            fs.writeFileSync(micadiscordInfo, JSON.stringify({ lastUpdate: GlobalProperties.VERSION }));
+            fs.writeFileSync(
+                micadiscordInfo,
+                JSON.stringify({ lastUpdate: GlobalProperties.VERSION }, null, 4)
+            );
 
-            document.querySelector('alert').style.display = "none";
+            versionAlert.style.display = 'none';
 
-            await log('\n-- Successfull install --');
+            await log('\n-- Installation completed successfully --');
             await progress(100);
-        }
-        catch (e) {
+
+            setTimeout(async () => {
+                await updateDiscordPresence();
+                if (!connected && typeof client.connect === 'function') {
+                    client.connect();
+                }
+            }, 1200);
+        } catch (error) {
             console.log(__dirname);
-            console.log(e);
-            installfunc();
+            console.log(error);
+            await log(`\n-- Installation failed: ${error.message || error} --`);
         }
-    }
+    };
 
-    install.addEventListener('click', installfunc);
+    installButton.addEventListener('click', installFunc);
 
-    uninstall.addEventListener('click', async () => {
+    uninstallButton.addEventListener('click', async () => {
         let uninstallSuccess = false;
 
-        document.querySelector('.log').innerText = '';
-        document.querySelector('span').click();
+        logElement.innerText = '';
+        switchSection(0);
 
-        await log('> Check app folder');
+        await log('> Checking app folder');
         await progress(0);
 
         if (fs.existsSync(discord)) {
-            if (fs.existsSync(discord + "main.js")) {
-                fs.unlinkSync(discord + "main.js");
+            if (fs.existsSync(discord + 'main.js')) {
+                fs.unlinkSync(discord + 'main.js');
                 uninstallSuccess = true;
-                await log('> Delete main.js');
+                await log('> Deleted main.js');
                 await progress(25);
             }
 
-            if (fs.existsSync(discord + "injector.js")) {
-                fs.unlinkSync(discord + "injector.js");
-                await log('> Delete injector.js');
+            if (fs.existsSync(discord + 'injector.js')) {
+                fs.unlinkSync(discord + 'injector.js');
+                await log('> Deleted injector.js');
                 await progress(50);
             }
 
-            if (fs.existsSync(discord + "index.js")) {
-                fs.unlinkSync(discord + "package.json");
-                fs.writeFileSync(discord + "package.json", '{"name":"discord_desktop_core","version":"0.0.0","private":"true","main":"index.js"}');
-                await log('> Restore betterdiscord package.json');
+            if (fs.existsSync(discord + 'index.js')) {
+                if (fs.existsSync(discord + 'package.json')) {
+                    fs.unlinkSync(discord + 'package.json');
+                }
+
+                fs.writeFileSync(
+                    discord + 'package.json',
+                    '{"name":"discord_desktop_core","version":"0.0.0","private":"true","main":"index.js"}'
+                );
+
+                await log('> Restored BetterDiscord package.json');
                 await progress(75);
             } else {
-                if (fs.existsSync(discord + "package.json")) {
-                    fs.unlinkSync(discord + "package.json");
+                if (fs.existsSync(discord + 'package.json')) {
+                    fs.unlinkSync(discord + 'package.json');
                     uninstallSuccess = true;
-                    await log('> Delete package.json');
+                    await log('> Deleted package.json');
                     await progress(75);
                 }
             }
@@ -268,119 +354,140 @@ window.onload = async () => {
 
                 if (discordOpened) {
                     await progress(90);
-                    await log('> Discord relaunch');
+                    await log('> Restarting Discord');
 
                     await killDiscord();
                     await launchDiscord();
                 }
             }
-        } else
-            await log('> Not found!');
+        } else {
+            await log('> Folder not found');
+        }
 
         await progress(100);
 
-
-    })
+        setTimeout(async () => {
+            connected = false;
+            await updateDiscordPresence();
+        }, 1000);
+    });
 
     if (fs.existsSync(micadiscord)) {
         const settingsMD = JSON.parse(fs.readFileSync(micadiscord).toString());
         settingsMD.editor = settingsMD.editor ?? true;
 
         setTimeout(() => {
-            document.querySelectorAll('input[name="theme"]')[settingsMD.theme].checked = true;
+            const themeInputs = document.querySelectorAll('input[name="theme"]');
+            if (themeInputs[settingsMD.theme]) {
+                themeInputs[settingsMD.theme].checked = true;
+            }
         }, 100);
-
-        if (!settingsMD.editor)
-            editor.innerText = "Désactiver l'editeur";
     }
 
     if (fs.existsSync(micadiscordInfo)) {
         const infoMD = JSON.parse(fs.readFileSync(micadiscordInfo).toString());
 
-        if (infoMD.lastUpdate >= GlobalProperties.VERSION)
-            document.querySelector('alert').style.display = "none";
+        if (infoMD.lastUpdate >= GlobalProperties.VERSION) {
+            versionAlert.style.display = 'none';
+        }
     }
 
-    const thmes = micadiscordData + 'themes\\';
-    const themeSetting = require(micadiscordThemes);
+    const themesFolder = micadiscordData + 'themes\\';
+    const themeSetting = fs.existsSync(micadiscordThemes)
+        ? JSON.parse(fs.readFileSync(micadiscordThemes, 'utf8'))
+        : { theme: '' };
 
-    let inputArray = new Object();
+    const themeList = document.getElementById('theme-list');
+    const inputArray = {};
 
-    let createFileInArray = (file) => {
-        let theme = document.createElement('div');
+    function createFileInArray(file) {
+        const theme = document.createElement('div');
+        theme.className = 'theme-item';
 
-        let radioInput = document.createElement('input');
+        const left = document.createElement('div');
+        left.className = 'theme-left';
+
+        const radioInput = document.createElement('input');
         radioInput.type = 'radio';
         radioInput.id = file;
-        radioInput.name = "theme";
+        radioInput.name = 'theme-file';
         radioInput.value = file;
 
-        theme.appendChild(radioInput);
+        left.appendChild(radioInput);
 
-        let labelInput = document.createElement('label');
+        const labelInput = document.createElement('label');
         labelInput.setAttribute('for', file);
         labelInput.innerText = file;
 
-        theme.appendChild(labelInput);
+        left.appendChild(labelInput);
 
-        let cross = document.createElement('i');
-        cross.classList.add('fa', 'fa-times');
-        cross.style.float = 'right';
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'theme-delete';
+        deleteButton.type = 'button';
+        deleteButton.textContent = 'Remove';
 
-        cross.addEventListener('click', () => {
-            fs.unlinkSync(thmes + file);
+        deleteButton.addEventListener('click', () => {
+            fs.unlinkSync(themesFolder + file);
+
+            if (inputArray[file]) {
+                inputArray[file].remove();
+                delete inputArray[file];
+            }
         });
 
-        theme.appendChild(cross);
+        theme.appendChild(left);
+        theme.appendChild(deleteButton);
 
-        document.getElementById('theme-list').appendChild(theme);
+        themeList.appendChild(theme);
         inputArray[file] = theme;
 
-        if (themeSetting.theme == file.split('.')[0])
+        if (themeSetting.theme === file.split('.')[0]) {
             radioInput.checked = true;
+        }
     }
 
-    fs.readdir(thmes, (err, files) => {
-        files.forEach(file => {
+    fs.readdir(themesFolder, (_err, files = []) => {
+        files.forEach((file) => {
             createFileInArray(file);
         });
     });
 
     setInterval(async () => {
+        const getList = async () => {
+            return new Promise((resolve) => {
+                const list = [];
 
-        let getList = async () => {
-            return new Promise((res, rej) => {
-                let list = new Array();
-
-                fs.readdir(thmes, (err, files) => {
-                    files.forEach(file => {
-                        if (!(file in inputArray) || !inputArray[file])
+                fs.readdir(themesFolder, (_err, files = []) => {
+                    files.forEach((file) => {
+                        if (!(file in inputArray) || !inputArray[file]) {
                             createFileInArray(file);
+                        }
 
                         list.push(file);
                     });
-                    res(list);
+
+                    resolve(list);
                 });
             });
-        }
+        };
 
-        let list = await getList();
+        const list = await getList();
 
-
-        Object.keys(inputArray).map((file, i) => {
+        Object.keys(inputArray).forEach((file) => {
             if (!list.includes(file)) {
-                const obj = inputArray[file];
+                const element = inputArray[file];
 
-                if (obj) {
-                    let checked = obj.querySelector('input').checked;
+                if (element) {
+                    const checked = element.querySelector('input').checked;
 
-                    document.getElementById('theme-list').removeChild(obj);
+                    themeList.removeChild(element);
                     delete inputArray[file];
 
                     const keyList = Object.keys(inputArray);
 
-                    if (keyList.length && checked)
-                        inputArray[keyList[0]].checked = true;
+                    if (keyList.length && checked) {
+                        inputArray[keyList[0]].querySelector('input').checked = true;
+                    }
                 }
             }
         });
@@ -389,57 +496,48 @@ window.onload = async () => {
     document.getElementById('applyTheme').addEventListener('click', () => {
         const input = document.querySelector('#theme-list input[type="radio"]:checked');
 
-        if (!connected)
-            ipcRenderer.send('apply', false);
+        if (!input) return;
 
-        else {
-            client.write(`2 ${fs.readFileSync(micadiscordData + 'themes\\' + input.value).toString()}`);
-            themeSetting.theme = input.value.split('.')[0];
-            fs.writeFileSync(micadiscordThemes, JSON.stringify(themeSetting, null, 4));
+        if (!connected) {
+            ipcRenderer.send('apply', false);
+            return;
         }
 
+        const cssContent = fs.readFileSync(micadiscordData + 'themes\\' + input.value).toString();
+
+        client.send({
+            type: 'applyThemeCss',
+            css: cssContent
+        });
+
+        themeSetting.theme = input.value.split('.')[0];
+        fs.writeFileSync(micadiscordThemes, JSON.stringify(themeSetting, null, 4));
     });
 
     document.getElementById('add-theme').addEventListener('click', () => {
-        let input = document.createElement('input');
+        const input = document.createElement('input');
         input.type = 'file';
         input.style.display = 'none';
-        input.setAttribute('accept', 'text/css');
+        input.setAttribute('accept', '.css,text/css');
         input.click();
 
-        input.onchange = e => {
-            const file = e.target.files[0];
-            const path = file.path;
-            const name = file.name.split('.')[0];
+        input.onchange = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
 
-            fs.copyFileSync(path, micadiscordData + 'themes\\' + name + '.css')
-        }
+            const name = path.parse(file.name).name;
+            const dest = path.join(micadiscordData, 'themes', `${name}.css`);
+
+            try {
+                await fs.ensureDir(path.join(micadiscordData, 'themes'));
+
+                const content = await file.text();
+                fs.writeFileSync(dest, content, 'utf8');
+            } catch (err) {
+                console.error('Failed to import theme:', err);
+            }
+        };
     });
 
-    async function log(e) {
-        document.querySelector('.log').innerText += `${e}\n`;
-        document.querySelector(".log").scrollTop = document.querySelector(".log").scrollHeight;
-    }
-
-    async function progress(e) {
-        document.querySelector('progress').value = e;
-    }
-
-    async function killDiscord() {
-        return new Promise((res, err) => {
-            exec('taskkill /f /im discord.exe', () => {
-                res(true);
-            });
-        });
-    }
-
-    async function launchDiscord() {
-        return new Promise((res, err) => {
-            exec(process.env.LOCALAPPDATA + '\\Discord\\Update.exe --processStart Discord.exe', () => {
-                res(true);
-            });
-        });
-    }
-
     document.getElementById('version').innerText = `Version ${GlobalProperties.VERSION}`;
-}
+};

@@ -1,11 +1,11 @@
 {
   "name": "micadiscord",
-  "version": "1.1.8",
+  "version": "2.0.0",
   "description": "MicaDiscord is a tool to change the design of the Discord app.",
   "main": "main.js",
   "dependencies": {
     "fs-extra": "^11.1.0",
-    "mica-electron": "^1.3.0",
+    "mica-electron": "^1.5.17",
     "open": "^8.4.2"
   },
   "scripts": {

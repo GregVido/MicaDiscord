@@ -1,76 +1,144 @@
 <!DOCTYPE html>
-<html lang="fr">
-
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MicaDiscord</title>
 
-    <script src="https://use.fontawesome.com/5f3c885cb6.js"></script>
-
-    <link rel="stylesheet" href="css/styles.css">
-    <script src="js/options.js"></script>
+    <link rel="stylesheet" href="css/styles.css" />
+    <script defer src="js/options.js"></script>
 </head>
-
 <body>
-    <main>
-        <fieldset>
-            <legend>Border Radius</legend>
-
+    <main class="app">
+        <div class="app-header">
             <div>
-                <input type="radio" id="rounded" name="borderRadius" value="2" checked>
-                <label for="rounded">Rounded</label>
+                <h1>Advanced options</h1>
+                <p>Customize corners, border color and background effect.</p>
             </div>
+        </div>
 
-            <div>
-                <input type="radio" id="smallrounded" name="borderRadius" value="3">
-                <label for="smallrounded">Small Rounded</label>
-            </div>
-
-            <div>
-                <input type="radio" id="square" name="borderRadius" value="1">
-                <label for="square">Square</label>
-            </div>
-
-            <button id="border" class="center-bottom">Apply</button>
-        </fieldset>
-        <fieldset>
-            <legend>Border Color</legend>
-
-            <div>
-                <input type="color" id="borderColor">
-                <label for="borderColor">Border Color</label>
-            </div>
-            <button id="disableBorder" class="right-bottom">Disable</button>
-        </fieldset>
-        <fieldset>
-            <legend>Custom effect Color</legend>
-
-            <div>
-                <input type="color" id="backgroundColor">
-                <label for="backgroundColor">Background Color</label>
-            </div>
-            <div class="right-top">
-                <input type="range" id="alpha" min="0" max="1" step="0.01">
-                <label id="textAlpha" for="alpha">50%</label>
-            </div>
-            <fieldset>
-                <legend>Type</legend>
-    
-                <div>
-                    <input type="radio" id="transparent" name="backgroundType" value="2" checked>
-                    <label for="transparent">Transparent</label>
+        <div class="options-grid">
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Corner style</h2>
+                        <p>Choose the window corner radius.</p>
+                    </div>
                 </div>
-    
-                <div>
-                    <input type="radio" id="acrylic" name="backgroundType" value="4">
-                    <label for="acrylic">Acrylic</label>
+
+                <div class="option-group">
+                    <label class="option-row">
+                        <input type="radio" id="rounded" name="borderRadius" value="2" checked>
+                        <span>Rounded</span>
+                    </label>
+
+                    <label class="option-row">
+                        <input type="radio" id="smallrounded" name="borderRadius" value="3">
+                        <span>Small rounded</span>
+                    </label>
+
+                    <label class="option-row">
+                        <input type="radio" id="square" name="borderRadius" value="1">
+                        <span>Square</span>
+                    </label>
                 </div>
-                <button id="disableBackground" class="right-bottom">Disable</button>
-            </fieldset>
-        </fieldset>
+
+                <div class="card-actions">
+                    <button id="border" class="button button-primary">Apply</button>
+                </div>
+            </section>
+
+            <section class="card">
+                <div class="card-header">
+                    <div>
+                        <h2>Border color</h2>
+                        <p>Apply a custom border color to the window.</p>
+                    </div>
+                </div>
+
+                <div class="field">
+                    <label for="borderColor">Border color</label>
+
+                    <div class="color-control">
+                        <label class="color-picker" for="borderColor">
+                            <input type="color" id="borderColor">
+                            <span class="color-preview" id="borderPreview"></span>
+                        </label>
+
+                        <div class="color-meta">
+                            <strong>Selected color</strong>
+                            <span id="borderColorValue">#000000</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card-actions spaced">
+                    <div class="hint">Changes are applied instantly.</div>
+                    <button id="disableBorder" class="button button-secondary">Disable</button>
+                </div>
+            </section>
+
+            <section class="card card-wide">
+                <div class="card-header">
+                    <div>
+                        <h2>Custom effect color</h2>
+                        <p>Adjust the custom background effect color and opacity.</p>
+                    </div>
+                </div>
+
+                <div class="custom-grid">
+                    <div class="field">
+                        <label for="backgroundColor">Background color</label>
+
+                        <div class="color-control">
+                            <label class="color-picker" for="backgroundColor">
+                                <input type="color" id="backgroundColor">
+                                <span class="color-preview" id="backgroundPreview"></span>
+                            </label>
+
+                            <div class="color-meta">
+                                <strong>Selected color</strong>
+                                <span id="backgroundColorValue">#000000</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <div class="range-header">
+                            <label for="alpha">Opacity</label>
+                            <span id="textAlpha">50%</span>
+                        </div>
+
+                        <div class="range-wrap">
+                            <input type="range" id="alpha" min="0" max="1" step="0.01" value="0.5">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="subcard">
+                    <div class="subcard-header">
+                        <h3>Effect type</h3>
+                    </div>
+
+                    <div class="option-group inline">
+                        <label class="option-row">
+                            <input type="radio" id="transparent" name="backgroundType" value="2" checked>
+                            <span>Transparent</span>
+                        </label>
+
+                        <label class="option-row">
+                            <input type="radio" id="acrylic" name="backgroundType" value="4">
+                            <span>Acrylic</span>
+                        </label>
+                    </div>
+
+                    <div class="card-actions end">
+                        <button id="disableBackground" class="button button-secondary">Disable</button>
+                    </div>
+                </div>
+            </section>
+        </div>
     </main>
 </body>
-
 </html>
