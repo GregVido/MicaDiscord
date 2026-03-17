@@ -103,6 +103,7 @@ async function update() {
     }
 
     setStatus(`Downloading update ${result.version}...`);
+
     const downloadResult = await ipcRenderer.invoke('download-update');
 
     if (!downloadResult.ok) {
@@ -110,14 +111,10 @@ async function update() {
         return false;
     }
 
-    return await new Promise((resolve) => {
-        ipcRenderer.once('update-downloaded', async () => {
-            setStatus('Installing update...');
-            await delay(700);
-            await ipcRenderer.invoke('quit-and-install-update');
-            resolve(true);
-        });
-    });
+    setStatus('Installing update...');
+    await delay(700);
+    await ipcRenderer.invoke('quit-and-install-update');
+    return true;
 }
 
 ipcRenderer.on('update-progress', (_event, data) => {

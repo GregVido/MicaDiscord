@@ -13,6 +13,8 @@ const exec = require('child_process').exec;
 const path = require('path');
 const fs = require('fs-extra');
 const DiscordIpcClient = require('./js/ipc-client.js');
+const psList = require("ps-list").default;
+const fkill = require('fkill').default;
 
 const GlobalProperties = require('../GlobalProperties.js');
 
@@ -146,12 +148,25 @@ window.onload = async () => {
         refreshConnectionUi();
     });
 
-    function discordIsOpen() {
-        return new Promise((resolve) => {
-            exec('tasklist', (_err, stdout) => {
-                resolve(stdout.toLowerCase().includes('discord.exe'));
-            });
+    async function getDiscordProcesses() {
+        const processes = await psList();
+
+        return processes.filter((proc) => {
+            const name = (proc.name || '').toLowerCase();
+            const cmd = (proc.cmd || '').toLowerCase();
+
+            return (
+                name === 'discord.exe' ||
+                name === 'update.exe' ||
+                cmd.includes('\\discord\\') ||
+                cmd.includes('/discord/')
+            );
         });
+    }
+
+    async function discordIsOpen() {
+        const processes = await getDiscordProcesses();
+        return processes.some((proc) => (proc.name || '').toLowerCase() === 'discord.exe');
     }
 
     async function updateDiscordPresence() {
@@ -230,22 +245,46 @@ window.onload = async () => {
         progressElement.value = value;
     }
 
-    function execCommand(command) {
-        return new Promise((resolve, reject) => {
-            exec(command, (error, stdout, stderr) => {
-                if (error) {
-                    resolve({ ok: false, stdout, stderr, error });
-                    return;
-                }
+    async function killDiscord() {
+        const processes = await getDiscordProcesses();
 
-                resolve({ ok: true, stdout, stderr });
-            });
-        });
+        if (processes.length === 0) {
+            return true;
+        }
+
+        const pids = [...new Set(processes.map((proc) => proc.pid).filter(Boolean))];
+
+        if (pids.length === 0) {
+            return true;
+        }
+
+        try {
+            await fkill(pids, { force: true, silent: true });
+        } catch (error) {
+            console.error('Failed to kill Discord processes:', error);
+        }
+
+        return true;
     }
 
-    async function killDiscord() {
-        await execCommand('taskkill /f /im discord.exe');
-        await execCommand('taskkill /f /im update.exe');
+    async function waitForDiscordToClose(timeout = 15000) {
+        const start = Date.now();
+
+        while (Date.now() - start < timeout) {
+            const processes = await getDiscordProcesses();
+            const stillRunning = processes.some(
+                (proc) => (proc.name || '').toLowerCase() === 'discord.exe'
+            );
+
+            if (!stillRunning) {
+                await new Promise((resolve) => setTimeout(resolve, 1200));
+                return true;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        return false;
     }
 
     async function waitForDiscordToClose(timeout = 15000) {

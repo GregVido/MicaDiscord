@@ -180,7 +180,7 @@ function setupAutoUpdater() {
     log.transports.file.level = 'info';
     autoUpdater.logger = log;
     autoUpdater.autoDownload = false;
-    autoUpdater.autoInstallOnAppQuit = true;
+    autoUpdater.autoInstallOnAppQuit = false;
 
     autoUpdater.on('checking-for-update', () => {
         sendToLoader('update-status', 'Checking for updates...');

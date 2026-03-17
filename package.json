@@ -6,9 +6,11 @@
   "dependencies": {
     "electron-log": "^5.4.3",
     "electron-updater": "^6.8.3",
+    "fkill": "^10.0.3",
     "fs-extra": "^11.1.0",
     "mica-electron": "^1.5.17",
-    "open": "^8.4.2"
+    "open": "^8.4.2",
+    "ps-list": "^9.0.0"
   },
   "scripts": {
     "package": "electron-builder --publish never",
