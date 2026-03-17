@@ -377,6 +377,13 @@ window.onload = async () => {
         settingsMD.editor = settingsMD.editor ?? true;
 
         setTimeout(() => {
+            const effectInput = document.querySelector(
+                `input[name="effect"][value="${settingsMD.effect}"]`
+            );
+            if (effectInput) {
+                effectInput.checked = true;
+            }
+
             const themeInputs = document.querySelectorAll('input[name="theme"]');
             if (themeInputs[settingsMD.theme]) {
                 themeInputs[settingsMD.theme].checked = true;

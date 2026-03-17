@@ -84,7 +84,7 @@ async function extractData() {
         fs.writeFileSync(
             themesFile,
             JSON.stringify(
-                { theme: defaultTheme || null },
+                { theme: "ClearVision-v7" },
                 null,
                 2
             ),
