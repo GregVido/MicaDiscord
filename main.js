@@ -16,12 +16,16 @@ limitations under the License.
 
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const { MicaBrowserWindow } = require('mica-electron');
-const open = require('open');
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 const path = require('path');
 
 app.commandLine.appendSwitch('enable-transparent-visuals');
 
 const ICON_PATH = path.join(__dirname, 'app.ico');
+
+let loaderWindow = null;
+let controllerWindow = null;
 
 function createLoaderWindow() {
     const loader = new MicaBrowserWindow({
@@ -166,31 +170,100 @@ function createOptionsWindow() {
     return options;
 }
 
+function sendToLoader(channel, payload) {
+    if (loaderWindow && !loaderWindow.isDestroyed()) {
+        loaderWindow.webContents.send(channel, payload);
+    }
+}
+
+function setupAutoUpdater() {
+    log.transports.file.level = 'info';
+    autoUpdater.logger = log;
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('checking-for-update', () => {
+        sendToLoader('update-status', 'Checking for updates...');
+    });
+
+    autoUpdater.on('update-available', (info) => {
+        sendToLoader('update-available', {
+            version: info.version
+        });
+    });
+
+    autoUpdater.on('update-not-available', () => {
+        sendToLoader('update-not-available');
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+        sendToLoader('update-progress', {
+            percent: progress.percent || 0
+        });
+    });
+
+    autoUpdater.on('update-downloaded', () => {
+        sendToLoader('update-downloaded');
+    });
+
+    autoUpdater.on('error', (error) => {
+        log.error('Auto updater error:', error);
+        sendToLoader('update-error', {
+            message: error?.message || String(error)
+        });
+    });
+}
+
 app.whenReady().then(() => {
-    const loader = createLoaderWindow();
+    setupAutoUpdater();
 
-    ipcMain.once('update', async (event) => {
-        const options = {
-            type: 'question',
-            buttons: ['Cancel', 'Yes, please', 'No, thanks'],
-            defaultId: 2,
-            title: 'Update',
-            message: 'An update is available. Download ?'
-        };
+    loaderWindow = createLoaderWindow();
 
-        const result = await dialog.showMessageBox(loader, options);
+    ipcMain.handle('check-for-updates', async () => {
+        try {
+            const result = await autoUpdater.checkForUpdates();
 
-        if (result.response === 1) {
-            open('https://github.com/GregVido/MicaDiscord');
-            setTimeout(() => app.quit(), 1000);
-        } else {
-            event.sender.send('res');
+            if (!result || !result.updateInfo) {
+                return { available: false };
+            }
+
+            return {
+                available: result.updateInfo.version !== app.getVersion(),
+                version: result.updateInfo.version
+            };
+        } catch (error) {
+            log.error('Failed to check for updates:', error);
+            return {
+                available: false,
+                error: error?.message || String(error)
+            };
         }
     });
 
+    ipcMain.handle('download-update', async () => {
+        try {
+            await autoUpdater.downloadUpdate();
+            return { ok: true };
+        } catch (error) {
+            log.error('Failed to download update:', error);
+            return {
+                ok: false,
+                error: error?.message || String(error)
+            };
+        }
+    });
+
+    ipcMain.handle('quit-and-install-update', async () => {
+        setImmediate(() => {
+            autoUpdater.quitAndInstall(false, true);
+        });
+
+        return { ok: true };
+    });
+
     ipcMain.once('error', () => {
-        if (!loader.isDestroyed()) {
-            loader.hide();
+        if (loaderWindow && !loaderWindow.isDestroyed()) {
+            loaderWindow.hide();
         }
 
         createErrorWindow();
@@ -201,15 +274,15 @@ app.whenReady().then(() => {
     });
 
     ipcMain.once('getController', () => {
-        if (!loader.isDestroyed()) {
-            loader.hide();
+        if (loaderWindow && !loaderWindow.isDestroyed()) {
+            loaderWindow.hide();
         }
 
-        const controller = createControllerWindow();
+        controllerWindow = createControllerWindow();
 
         ipcMain.on('apply', (_evt, enable) => {
             if (!enable) {
-                dialog.showMessageBoxSync(controller, {
+                dialog.showMessageBoxSync(controllerWindow, {
                     message: 'MicaDiscord ne peut pas appliquer les effets :/',
                     detail: 'Vous pouvez appliquer les effets seulement lorsque MicaDiscord est connecté à Discord.',
                     type: 'error',
@@ -219,7 +292,7 @@ app.whenReady().then(() => {
         });
 
         ipcMain.on('noVersion', () => {
-            dialog.showMessageBoxSync(controller, {
+            dialog.showMessageBoxSync(controllerWindow, {
                 message: 'MicaDiscord est pas à jour ?',
                 detail: 'Discord ne possède pas la dernière version de MicaDiscord installé.',
                 type: 'error',
@@ -232,15 +305,15 @@ app.whenReady().then(() => {
         });
 
         ipcMain.on('corner', (_evt, value) => {
-            controller.webContents.send('corner', value);
+            controllerWindow.webContents.send('corner', value);
         });
 
         ipcMain.on('borderColor', (_evt, value, enable) => {
-            controller.webContents.send('borderColor', value, enable);
+            controllerWindow.webContents.send('borderColor', value, enable);
         });
 
         ipcMain.on('backgroundColor', (_evt, color, alpha, type, enable) => {
-            controller.webContents.send('backgroundColor', color, alpha, type, enable);
+            controllerWindow.webContents.send('backgroundColor', color, alpha, type, enable);
         });
     });
 });

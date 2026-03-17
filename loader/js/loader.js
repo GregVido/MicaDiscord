@@ -3,13 +3,9 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-const GlobalProperties = require('../GlobalProperties.js');
-
 const dataDir = path.join(process.env.APPDATA, 'MicaDiscordData');
 const themesDir = path.join(dataDir, 'themes');
 const themesFile = path.join(dataDir, 'themes.json');
-
-/* Bundled themes folder */
 const bundledThemesDir = path.join(__dirname, '..', 'themes');
 
 const statusEl = document.getElementById('status');
@@ -65,7 +61,7 @@ async function getValidVersion() {
     const major = Number.parseInt(release[0], 10);
     const build = Number.parseInt(release[2], 10);
 
-    await delay(700);
+    await delay(300);
 
     return major >= 10 && build >= 22000;
 }
@@ -74,17 +70,15 @@ async function extractData() {
     fs.mkdirSync(dataDir, { recursive: true });
     fs.mkdirSync(themesDir, { recursive: true });
 
-    /* Copy every bundled theme file/folder into the user themes directory */
     copyDirectoryRecursive(bundledThemesDir, themesDir);
 
-    /* Create themes.json only if it does not exist yet */
     if (!fs.existsSync(themesFile)) {
         const defaultTheme = getDefaultThemeName();
 
         fs.writeFileSync(
             themesFile,
             JSON.stringify(
-                { theme: "ClearVision-v7" },
+                { theme: defaultTheme || 'ClearVision-v7' },
                 null,
                 2
             ),
@@ -92,36 +86,48 @@ async function extractData() {
         );
     }
 
-    await delay(500);
+    await delay(300);
 }
 
 async function update() {
-    const UPDATE_URL = `https://www.micadiscord.com/api/update.json?time=${Date.now()}`;
-    const VERSION = GlobalProperties.VERSION;
+    setStatus('Checking for updates...');
+    const result = await ipcRenderer.invoke('check-for-updates');
 
-    try {
-        const response = await fetch(UPDATE_URL);
-        const params = await response.json();
-
-        if (params.version === VERSION) {
-            return false;
-        }
-
-        return await new Promise((resolve) => {
-            ipcRenderer.once('res', () => resolve(false));
-            ipcRenderer.send('update');
-        });
-    } catch (error) {
-        console.error('Update check failed:', error);
+    if (!result || result.error) {
+        console.error('Update check failed:', result?.error);
         return false;
     }
+
+    if (!result.available) {
+        return false;
+    }
+
+    setStatus(`Downloading update ${result.version}...`);
+    const downloadResult = await ipcRenderer.invoke('download-update');
+
+    if (!downloadResult.ok) {
+        console.error('Update download failed:', downloadResult.error);
+        return false;
+    }
+
+    return await new Promise((resolve) => {
+        ipcRenderer.once('update-downloaded', async () => {
+            setStatus('Installing update...');
+            await delay(700);
+            await ipcRenderer.invoke('quit-and-install-update');
+            resolve(true);
+        });
+    });
 }
+
+ipcRenderer.on('update-progress', (_event, data) => {
+    const percent = Math.round(data.percent || 0);
+    setStatus(`Downloading update... ${percent}%`);
+});
 
 window.addEventListener('DOMContentLoaded', async () => {
     try {
-        setStatus('Checking for updates...');
         const hasUpdate = await update();
-
         if (hasUpdate) return;
 
         setStatus('Checking operating system compatibility...');
@@ -135,7 +141,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         setStatus('Preparing resources...');
         await extractData();
 
-        setStatus('Launching MicaDiscord...');
+        setStatus('Waiting for Discord...');
         await delay(300);
 
         ipcRenderer.send('getController');
