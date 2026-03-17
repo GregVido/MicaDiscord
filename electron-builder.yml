@@ -18,6 +18,8 @@ win:
 
 nsis:
   oneClick: false
+  perMachine: false
+  allowElevation: false
   deleteAppDataOnUninstall: true
   allowToChangeInstallationDirectory: true
   artifactName: MicaDiscord-${version}-setup.${ext}
