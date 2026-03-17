@@ -1,6 +1,6 @@
 {
   "name": "micadiscord",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "MicaDiscord is a tool to change the design of the Discord app.",
   "main": "main.js",
   "dependencies": {
@@ -16,7 +16,7 @@
     "package": "electron-builder --publish never",
     "release": "electron-builder --publish always"
   },
-  "author": "MissingNo.#9660 and Arbitro#0153",
+  "author": "GregVido and Arbitro",
   "license": "ISC",
   "repository": {
     "type": "git",

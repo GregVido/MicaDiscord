@@ -19,6 +19,11 @@ const { MicaBrowserWindow } = require('mica-electron');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
+
+log.initialize();
 
 app.commandLine.appendSwitch('enable-transparent-visuals');
 
@@ -26,6 +31,76 @@ const ICON_PATH = path.join(__dirname, 'app.ico');
 
 let loaderWindow = null;
 let controllerWindow = null;
+
+
+async function getDiscordProcesses() {
+    try {
+        const { stdout } = await execAsync(
+            'powershell -NoProfile -Command "Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -in @(\'Discord\', \'Update\') } | Select-Object Id,ProcessName | ConvertTo-Json -Compress"'
+        );
+
+        if (!stdout.trim()) {
+            return [];
+        }
+
+        const data = JSON.parse(stdout);
+        const list = Array.isArray(data) ? data : [data];
+
+        return list.map((proc) => ({
+            pid: proc.Id,
+            name: `${proc.ProcessName}.exe`
+        }));
+    } catch (error) {
+        log.error('getDiscordProcesses failed:', error);
+        return [];
+    }
+}
+
+async function discordIsOpenMain() {
+    const processes = await getDiscordProcesses();
+    return processes.some((proc) => (proc.name || '').toLowerCase() === 'discord.exe');
+}
+
+async function killDiscordMain() {
+    try {
+        await execAsync('taskkill /f /t /im discord.exe').catch(() => {});
+        await execAsync('taskkill /f /t /im update.exe').catch(() => {});
+
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        const remaining = await getDiscordProcesses();
+
+        return {
+            ok: remaining.length === 0,
+            remaining: remaining.map((proc) => ({
+                pid: proc.pid,
+                name: proc.name
+            }))
+        };
+    } catch (error) {
+        return {
+            ok: false,
+            error: error?.message || String(error)
+        };
+    }
+}
+
+async function waitForDiscordToCloseMain(timeout = 15000) {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+        const open = await discordIsOpenMain();
+
+        if (!open) {
+            await new Promise((resolve) => setTimeout(resolve, 1200));
+            return true;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    return false;
+}
 
 function createLoaderWindow() {
     const loader = new MicaBrowserWindow({
@@ -218,6 +293,26 @@ app.whenReady().then(() => {
     setupAutoUpdater();
 
     loaderWindow = createLoaderWindow();
+
+    ipcMain.handle('discord:is-open', async () => {
+        try {
+            return { ok: true, open: await discordIsOpenMain() };
+        } catch (error) {
+            return { ok: false, error: error?.message || String(error), open: false };
+        }
+    });
+
+    ipcMain.handle('discord:kill', async () => {
+        return await killDiscordMain();
+    });
+
+    ipcMain.handle('discord:wait-close', async (_evt, timeout = 15000) => {
+        try {
+            return { ok: true, closed: await waitForDiscordToCloseMain(timeout) };
+        } catch (error) {
+            return { ok: false, error: error?.message || String(error), closed: false };
+        }
+    });
 
     ipcMain.handle('check-for-updates', async () => {
         try {

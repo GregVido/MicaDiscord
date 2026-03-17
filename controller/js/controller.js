@@ -13,8 +13,6 @@ const exec = require('child_process').exec;
 const path = require('path');
 const fs = require('fs-extra');
 const DiscordIpcClient = require('./js/ipc-client.js');
-const psList = require("ps-list").default;
-const fkill = require('fkill').default;
 
 const GlobalProperties = require('../GlobalProperties.js');
 
@@ -92,6 +90,44 @@ window.onload = async () => {
         connectionLabel.textContent = label;
     }
 
+    async function isPathUnlocked(targetPath) {
+        try {
+            if (!fs.existsSync(targetPath)) {
+                return true;
+            }
+
+            const tempPath = `${targetPath}.tmp-check`;
+
+            await fs.move(targetPath, tempPath, { overwrite: true });
+            await fs.move(tempPath, targetPath, { overwrite: true });
+
+            return true;
+        } catch (error) {
+            if (error.code === 'EPERM' || error.code === 'EBUSY') {
+                return false;
+            }
+
+            throw error;
+        }
+    }
+
+    async function waitForPathUnlock(targetPath, timeout = 20000, interval = 700) {
+        const start = Date.now();
+
+        while (Date.now() - start < timeout) {
+            const unlocked = await isPathUnlocked(targetPath);
+
+            if (unlocked) {
+                await new Promise((resolve) => setTimeout(resolve, 1200));
+                return true;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, interval));
+        }
+
+        return false;
+    }
+
     function refreshConnectionUi() {
         if (connected) {
             setConnectionState(
@@ -148,27 +184,12 @@ window.onload = async () => {
         refreshConnectionUi();
     });
 
-    async function getDiscordProcesses() {
-        const processes = await psList();
-
-        return processes.filter((proc) => {
-            const name = (proc.name || '').toLowerCase();
-            const cmd = (proc.cmd || '').toLowerCase();
-
-            return (
-                name === 'discord.exe' ||
-                name === 'update.exe' ||
-                cmd.includes('\\discord\\') ||
-                cmd.includes('/discord/')
-            );
-        });
-    }
 
     async function discordIsOpen() {
-        const processes = await getDiscordProcesses();
-        return processes.some((proc) => (proc.name || '').toLowerCase() === 'discord.exe');
+        const result = await ipcRenderer.invoke('discord:is-open');
+        console.log(result)
+        return !!result?.open;
     }
-
     async function updateDiscordPresence() {
         discordDetected = await discordIsOpen();
         refreshConnectionUi();
@@ -246,62 +267,15 @@ window.onload = async () => {
     }
 
     async function killDiscord() {
-        const processes = await getDiscordProcesses();
-
-        if (processes.length === 0) {
-            return true;
-        }
-
-        const pids = [...new Set(processes.map((proc) => proc.pid).filter(Boolean))];
-
-        if (pids.length === 0) {
-            return true;
-        }
-
-        try {
-            await fkill(pids, { force: true, silent: true });
-        } catch (error) {
-            console.error('Failed to kill Discord processes:', error);
-        }
-
-        return true;
+        const result = await ipcRenderer.invoke('discord:kill');
+        console.log('discord:kill result =', result);
+        await log(`> killDiscord result: ${JSON.stringify(result)}`);
+        return result;
     }
 
     async function waitForDiscordToClose(timeout = 15000) {
-        const start = Date.now();
-
-        while (Date.now() - start < timeout) {
-            const processes = await getDiscordProcesses();
-            const stillRunning = processes.some(
-                (proc) => (proc.name || '').toLowerCase() === 'discord.exe'
-            );
-
-            if (!stillRunning) {
-                await new Promise((resolve) => setTimeout(resolve, 1200));
-                return true;
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-
-        return false;
-    }
-
-    async function waitForDiscordToClose(timeout = 15000) {
-        const start = Date.now();
-
-        while (Date.now() - start < timeout) {
-            const open = await discordIsOpen();
-
-            if (!open) {
-                await new Promise((resolve) => setTimeout(resolve, 1200));
-                return true;
-            }
-
-            await new Promise((resolve) => setTimeout(resolve, 500));
-        }
-
-        return false;
+        const result = await ipcRenderer.invoke('discord:wait-close', timeout);
+        return !!result?.closed;
     }
 
     function launchDiscord() {
@@ -333,6 +307,29 @@ window.onload = async () => {
         throw lastError;
     }
 
+    async function removeWithRetry(targetPath, retries = 10, delayMs = 800) {
+        let lastError;
+
+        for (let i = 0; i < retries; i++) {
+            try {
+                if (fs.existsSync(targetPath)) {
+                    await fs.remove(targetPath);
+                }
+                return;
+            } catch (error) {
+                lastError = error;
+
+                if (error.code !== 'EPERM' && error.code !== 'EBUSY') {
+                    throw error;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
+
+        throw lastError;
+    }
+
     const installFunc = async () => {
         logElement.innerText = '';
         await log('MicaDiscord - By GregVido and Arbitro\n');
@@ -344,12 +341,30 @@ window.onload = async () => {
                 await log('> Closing Discord');
                 await progress(0);
 
-                await killDiscord();
+                const killResult = await killDiscord();
+
+                if (!killResult?.ok) {
+                    throw new Error(killResult?.error || 'Failed to kill Discord.');
+                }
 
                 const closed = await waitForDiscordToClose();
 
                 if (!closed) {
                     throw new Error('Discord is still running. Please close it completely and try again.');
+                }
+
+                const lockedModulePath = path.join(
+                    discord,
+                    'node_modules',
+                    'mica-electron',
+                    'src',
+                    'micaElectron_x64.node'
+                );
+
+                const unlocked = await waitForPathUnlock(lockedModulePath);
+
+                if (!unlocked) {
+                    throw new Error('Discord files are still locked. Please close Discord completely and try again.');
                 }
             }
 
@@ -360,6 +375,12 @@ window.onload = async () => {
 
             while (!found) {
                 if (fs.existsSync(path.join(__dirname, ...previousFolders, 'data'))) {
+                    const micaModulePath = path.join(discord, 'node_modules', 'mica-electron');
+
+                    if (fs.existsSync(micaModulePath)) {
+                        await log('> Removing previous mica-electron files');
+                        await removeWithRetry(micaModulePath);
+                    }
                     await copyWithRetry(path.join(__dirname, ...previousFolders, 'data'), discord);
                     found = true;
                 } else {
