@@ -230,10 +230,39 @@ window.onload = async () => {
         progressElement.value = value;
     }
 
-    function killDiscord() {
-        return new Promise((resolve) => {
-            exec('taskkill /f /im discord.exe', () => resolve(true));
+    function execCommand(command) {
+        return new Promise((resolve, reject) => {
+            exec(command, (error, stdout, stderr) => {
+                if (error) {
+                    resolve({ ok: false, stdout, stderr, error });
+                    return;
+                }
+
+                resolve({ ok: true, stdout, stderr });
+            });
         });
+    }
+
+    async function killDiscord() {
+        await execCommand('taskkill /f /im discord.exe');
+        await execCommand('taskkill /f /im update.exe');
+    }
+
+    async function waitForDiscordToClose(timeout = 15000) {
+        const start = Date.now();
+
+        while (Date.now() - start < timeout) {
+            const open = await discordIsOpen();
+
+            if (!open) {
+                await new Promise((resolve) => setTimeout(resolve, 1200));
+                return true;
+            }
+
+            await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        return false;
     }
 
     function launchDiscord() {
@@ -244,19 +273,47 @@ window.onload = async () => {
         });
     }
 
+    async function copyWithRetry(source, destination, retries = 8, delayMs = 800) {
+        let lastError;
+
+        for (let i = 0; i < retries; i++) {
+            try {
+                await fs.copy(source, destination, { overwrite: true });
+                return;
+            } catch (error) {
+                lastError = error;
+
+                if (error.code !== 'EPERM' && error.code !== 'EBUSY') {
+                    throw error;
+                }
+
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+        }
+
+        throw lastError;
+    }
+
     const installFunc = async () => {
         logElement.innerText = '';
         await log('MicaDiscord - By GregVido and Arbitro\n');
 
-        const discordOpened = await discordIsOpen();
-
-        if (discordOpened) {
-            await log('> Closing Discord');
-            await progress(0);
-            await killDiscord();
-        }
-
         try {
+            const discordOpened = await discordIsOpen();
+
+            if (discordOpened) {
+                await log('> Closing Discord');
+                await progress(0);
+
+                await killDiscord();
+
+                const closed = await waitForDiscordToClose();
+
+                if (!closed) {
+                    throw new Error('Discord is still running. Please close it completely and try again.');
+                }
+            }
+
             await log('> Installing Mica-Electron');
 
             let found = false;
@@ -264,7 +321,7 @@ window.onload = async () => {
 
             while (!found) {
                 if (fs.existsSync(path.join(__dirname, ...previousFolders, 'data'))) {
-                    await fs.copy(path.join(__dirname, ...previousFolders, 'data'), discord);
+                    await copyWithRetry(path.join(__dirname, ...previousFolders, 'data'), discord);
                     found = true;
                 } else {
                     previousFolders.push('..');
@@ -384,9 +441,11 @@ window.onload = async () => {
                 effectInput.checked = true;
             }
 
-            const themeInputs = document.querySelectorAll('input[name="theme"]');
-            if (themeInputs[settingsMD.theme]) {
-                themeInputs[settingsMD.theme].checked = true;
+            const themeInput = document.querySelector(
+                `input[name="theme"][value="${settingsMD.theme}"]`
+            );
+            if (themeInput) {
+                themeInput.checked = true;
             }
         }, 100);
     }
